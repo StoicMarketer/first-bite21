@@ -44,6 +44,124 @@ export type Database = {
         }
         Relationships: []
       }
+      channel_messages: {
+        Row: {
+          audio_path: string | null
+          channel_id: string
+          created_at: string
+          fanned_out: boolean
+          id: string
+          kind: string
+          sender_id: string
+          text_content: string | null
+        }
+        Insert: {
+          audio_path?: string | null
+          channel_id: string
+          created_at?: string
+          fanned_out?: boolean
+          id?: string
+          kind: string
+          sender_id: string
+          text_content?: string | null
+        }
+        Update: {
+          audio_path?: string | null
+          channel_id?: string
+          created_at?: string
+          fanned_out?: boolean
+          id?: string
+          kind?: string
+          sender_id?: string
+          text_content?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_messages_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      channel_subscriptions: {
+        Row: {
+          allow_receive: boolean
+          allow_send: boolean
+          channel_id: string
+          joined_at: string
+          share_wake_code: boolean
+          user_id: string
+        }
+        Insert: {
+          allow_receive?: boolean
+          allow_send?: boolean
+          channel_id: string
+          joined_at?: string
+          share_wake_code?: boolean
+          user_id: string
+        }
+        Update: {
+          allow_receive?: boolean
+          allow_send?: boolean
+          channel_id?: string
+          joined_at?: string
+          share_wake_code?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_subscriptions_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      channels: {
+        Row: {
+          cover_emoji: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_official: boolean
+          name: string
+          slug: string
+          tone_prompt: string
+          updated_at: string
+          voice: string
+        }
+        Insert: {
+          cover_emoji?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_official?: boolean
+          name: string
+          slug: string
+          tone_prompt: string
+          updated_at?: string
+          voice?: string
+        }
+        Update: {
+          cover_emoji?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_official?: boolean
+          name?: string
+          slug?: string
+          tone_prompt?: string
+          updated_at?: string
+          voice?: string
+        }
+        Relationships: []
+      }
       friendships: {
         Row: {
           created_at: string
@@ -74,11 +192,14 @@ export type Database = {
       messages: {
         Row: {
           audio_path: string | null
+          channel_id: string | null
           created_at: string
           id: string
+          is_ai: boolean
           is_played: boolean
           kind: Database["public"]["Enums"]["message_kind"]
           played_at: string | null
+          played_on_date: string | null
           receiver_id: string
           saved_by_receiver: boolean
           scheduled_for: string
@@ -87,11 +208,14 @@ export type Database = {
         }
         Insert: {
           audio_path?: string | null
+          channel_id?: string | null
           created_at?: string
           id?: string
+          is_ai?: boolean
           is_played?: boolean
           kind: Database["public"]["Enums"]["message_kind"]
           played_at?: string | null
+          played_on_date?: string | null
           receiver_id: string
           saved_by_receiver?: boolean
           scheduled_for: string
@@ -100,11 +224,14 @@ export type Database = {
         }
         Update: {
           audio_path?: string | null
+          channel_id?: string | null
           created_at?: string
           id?: string
+          is_ai?: boolean
           is_played?: boolean
           kind?: Database["public"]["Enums"]["message_kind"]
           played_at?: string | null
+          played_on_date?: string | null
           receiver_id?: string
           saved_by_receiver?: boolean
           scheduled_for?: string
@@ -116,6 +243,8 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          birthdate: string | null
+          birthday_unlimited: boolean
           created_at: string
           display_name: string | null
           id: string
@@ -128,6 +257,8 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          birthdate?: string | null
+          birthday_unlimited?: boolean
           created_at?: string
           display_name?: string | null
           id: string
@@ -140,6 +271,8 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          birthdate?: string | null
+          birthday_unlimited?: boolean
           created_at?: string
           display_name?: string | null
           id?: string
@@ -195,6 +328,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      fanout_channel_messages: { Args: never; Returns: number }
       generate_wake_code: { Args: never; Returns: string }
       lookup_by_wake_code: {
         Args: { _code: string }

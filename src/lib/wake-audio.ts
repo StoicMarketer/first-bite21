@@ -28,13 +28,15 @@ class WakeAudioManager {
     }
   }
 
-  playClip(url: string): Promise<void> {
+  playClip(url: string, opts?: { loop?: boolean }): Promise<void> {
     this.stopClip();
     return new Promise((resolve, reject) => {
       const a = new Audio(url);
       a.preload = "auto";
+      a.loop = !!opts?.loop;
       this.currentAudio = a;
       a.onended = () => {
+        if (a.loop) return;
         if (this.currentAudio === a) this.currentAudio = null;
         resolve();
       };
@@ -42,7 +44,7 @@ class WakeAudioManager {
         if (this.currentAudio === a) this.currentAudio = null;
         reject(new Error("audio_error"));
       };
-      a.play().catch((e) => reject(e));
+      a.play().then(() => { if (a.loop) resolve(); }).catch((e) => reject(e));
     });
   }
 

@@ -100,7 +100,13 @@ function CirclePage() {
           <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground">En tu círculo</div>
           {circle && circle.length > 0 ? circle.map((f) => (
             <Row key={f.id} name={f.display_name || f.username} sub={`@${f.username}${f.alarm_active ? ` · alarma ${f.alarm_time?.slice(0,5) ?? ""}` : ""}`} avatar={f.avatar_url} />
-          )) : <p className="text-sm text-muted-foreground py-6 text-center">Tu círculo está vacío. Busca a alguien para empezar.</p>}
+          )) : (
+            <div className="p-6 rounded-3xl border border-dashed border-border text-center space-y-3">
+              <p className="text-sm text-muted-foreground">Aún no hay nadie en tu círculo.</p>
+              <p className="text-xs text-muted-foreground">Mientras tanto, únete a un canal y empieza a recibir despertares de gente con tu vibra.</p>
+              <a href="/channels" className="inline-block text-xs font-medium underline">Explorar canales temáticos →</a>
+            </div>
+          )}
         </div>
       </div>
     </MobileShell>

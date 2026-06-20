@@ -4,15 +4,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { motion, useMotionValue, useTransform } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { ChevronRight, Star, X } from "lucide-react";
+import { ChevronRight, Square, X } from "lucide-react";
 import { MobileShell } from "@/components/mobile-shell";
 import { Button } from "@/components/ui/button";
 import { getWakeQueue, markPlayed, saveMessage, sendReaction, updateAlarm } from "@/lib/messages.functions";
+import { getAiWakeMessage } from "@/lib/ai-wake.functions";
 import { primeAudio, startRecorder } from "@/lib/audio-context";
 import { wakeAudio } from "@/lib/wake-audio";
 import { toast } from "sonner";
 
-const search = z.object({ force: z.boolean().optional() });
+const search = z.object({ force: z.boolean().optional(), messageId: z.string().uuid().optional() });
 
 export const Route = createFileRoute("/_authenticated/wake")({
   validateSearch: (s) => search.parse(s),
@@ -26,27 +27,56 @@ type WakeMessage = {
   audio_path: string | null;
   text_content: string | null;
   signedUrl: string | null;
-  sender?: { id: string; username: string; display_name: string | null; avatar_url: string | null };
+  is_ai?: boolean;
+  sender?: { id?: string; username: string; display_name: string | null; avatar_url?: string | null };
 };
 
 function WakePage() {
   const navigate = useNavigate();
-  const { force } = Route.useSearch();
+  const { force, messageId } = Route.useSearch();
   const queueFn = useServerFn(getWakeQueue);
+  const aiFn = useServerFn(getAiWakeMessage);
   const markFn = useServerFn(markPlayed);
   const saveFn = useServerFn(saveMessage);
   const reactFn = useServerFn(sendReaction);
   const updateAlarmFn = useServerFn(updateAlarm);
 
-  const { data: queue, isLoading } = useQuery({
-    queryKey: ["wakeQueue", force],
-    queryFn: () => queueFn({ data: { force: !!force } }),
+  const { data: queueData, isLoading } = useQuery({
+    queryKey: ["wakeQueue", force, messageId],
+    queryFn: () => queueFn({ data: { force: !!force, messageId } }),
   });
+
+  // Fallback AI message when no real messages in queue
+  const noHuman = !!queueData && queueData.messages.length === 0;
+  const { data: aiMsg } = useQuery({
+    queryKey: ["aiWake"],
+    queryFn: () => aiFn(),
+    enabled: noHuman,
+  });
+
+  const queue: WakeMessage[] =
+    queueData && queueData.messages.length > 0
+      ? (queueData.messages as WakeMessage[])
+      : aiMsg
+        ? [{
+            id: "ai",
+            sender_id: "ai",
+            kind: "text" as const,
+            audio_path: null,
+            text_content: aiMsg.text,
+            signedUrl: null,
+            is_ai: true,
+            sender: { username: aiMsg.sender.username, display_name: aiMsg.sender.display_name },
+          }]
+        : [];
+
+  const isBirthday = !!queueData?.isBirthday;
 
   const [phase, setPhase] = useState<"ringing" | "playing" | "reacting" | "done">("ringing");
   const [idx, setIdx] = useState(0);
   const [now, setNow] = useState(new Date());
   const cancelledRef = useRef(false);
+  const stopLoopRef = useRef(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -56,6 +86,7 @@ function WakePage() {
   useEffect(() => {
     return () => {
       cancelledRef.current = true;
+      stopLoopRef.current = true;
       wakeAudio.stopAll();
     };
   }, []);
@@ -66,53 +97,89 @@ function WakePage() {
     return () => wakeAudio.stopRing();
   }, [phase]);
 
-  const playNext = useCallback(async (i: number) => {
+  // Loop playback until the user stops the alarm.
+  const playLoop = useCallback(async () => {
     if (cancelledRef.current) return;
-    const list = queue ?? [];
-    if (i >= list.length) {
-      if (list.length === 0) {
-        wakeAudio.playZen(30000);
-        window.setTimeout(() => {
-          if (!cancelledRef.current) {
-            wakeAudio.stopZen();
-            setPhase("done");
-          }
-        }, 30000);
-      } else {
-        setPhase("reacting");
-      }
+    stopLoopRef.current = false;
+    const list = queue;
+    if (list.length === 0) {
+      // No messages and no AI fallback ready: zen 30s then move to reacting/done.
+      wakeAudio.playZen(30000);
+      window.setTimeout(() => {
+        if (!cancelledRef.current) {
+          wakeAudio.stopZen();
+          setPhase("done");
+        }
+      }, 30000);
       return;
     }
-    setIdx(i);
-    const msg = list[i] as WakeMessage;
-    if (msg.kind === "audio" && msg.signedUrl) {
-      try {
-        await wakeAudio.playClip(msg.signedUrl);
-        await markFn({ data: { messageId: msg.id } });
-      } catch {
-        toast.error("No se pudo reproducir el audio, saltando…");
+
+    // Sequence: single message (non-birthday) loops; birthday cycles all.
+    // AI fallback text loops too.
+    let i = 0;
+    while (!cancelledRef.current && !stopLoopRef.current) {
+      const msg = list[i % list.length];
+      setIdx(i % list.length);
+
+      if (msg.kind === "audio" && msg.signedUrl) {
+        try {
+          // For single message we use native loop; for birthday cycle we don't.
+          const useNativeLoop = list.length === 1 && !isBirthday;
+          await wakeAudio.playClip(msg.signedUrl, { loop: useNativeLoop });
+          if (msg.id !== "ai") {
+            try { await markFn({ data: { messageId: msg.id } }); } catch { /* noop */ }
+          }
+          if (useNativeLoop) {
+            // playClip resolved immediately because of loop; keep this loop blocked.
+            await new Promise<void>((resolve) => {
+              const check = setInterval(() => {
+                if (cancelledRef.current || stopLoopRef.current) {
+                  clearInterval(check);
+                  resolve();
+                }
+              }, 250);
+            });
+          }
+        } catch {
+          toast.error("No se pudo reproducir el audio");
+        }
+      } else if (msg.kind === "text" && msg.text_content) {
+        await wakeAudio.speak(msg.text_content);
+        if (msg.id !== "ai") {
+          try { await markFn({ data: { messageId: msg.id } }); } catch { /* noop */ }
+        }
       }
-      if (!cancelledRef.current) await playNext(i + 1);
-    } else if (msg.kind === "text" && msg.text_content) {
-      await wakeAudio.speak(msg.text_content);
-      try { await markFn({ data: { messageId: msg.id } }); } catch { /* ignore */ }
-      if (!cancelledRef.current) await playNext(i + 1);
-    } else {
-      await playNext(i + 1);
+
+      if (stopLoopRef.current || cancelledRef.current) break;
+      i++;
+      // small breath between repetitions
+      await new Promise((r) => setTimeout(r, 800));
     }
-  }, [queue, markFn]);
+  }, [queue, isBirthday, markFn]);
 
   async function dismiss() {
     wakeAudio.stopRing();
     await primeAudio();
     setPhase("playing");
-    await playNext(0);
+    void playLoop();
+  }
+
+  function stopAlarmAndReact() {
+    stopLoopRef.current = true;
+    wakeAudio.stopClip();
+    wakeAudio.cancelSpeech();
+    if (queue.length === 0 || queue[0]?.id === "ai") {
+      setPhase("done");
+    } else {
+      setPhase("reacting");
+    }
   }
 
   async function stopAndExit(disableAlarm = true) {
     cancelledRef.current = true;
+    stopLoopRef.current = true;
     wakeAudio.stopAll();
-    if (disableAlarm && !force) {
+    if (disableAlarm && !force && !messageId) {
       try {
         await updateAlarmFn({
           data: {
@@ -125,7 +192,7 @@ function WakePage() {
     navigate({ to: "/home" });
   }
 
-  const currentMessage = queue && idx < queue.length ? (queue[idx] as WakeMessage) : null;
+  const currentMessage = queue[idx] ?? null;
 
   return (
     <MobileShell hideTabBar>
@@ -135,7 +202,9 @@ function WakePage() {
         </button>
 
         <div className="px-7 pt-16 pb-10 flex flex-col min-h-[100dvh]">
-          <div className="text-[10px] tracking-[0.4em] uppercase opacity-70">Buenos días</div>
+          <div className="text-[10px] tracking-[0.4em] uppercase opacity-70">
+            {isBirthday ? "🎂 Feliz cumpleaños" : "Buenos días"}
+          </div>
           <div className="font-display text-[96px] leading-none tabular mt-3">
             {String(now.getHours()).padStart(2, "0")}:{String(now.getMinutes()).padStart(2, "0")}
           </div>
@@ -147,9 +216,15 @@ function WakePage() {
             {phase === "ringing" && (
               <div className="space-y-6">
                 <div className="text-center font-display text-2xl leading-snug max-w-xs mx-auto">
-                  {isLoading ? "…" : (queue && queue.length > 0)
-                    ? `Tienes ${queue.length} ${queue.length === 1 ? "mensaje" : "mensajes"} esperando.`
-                    : "Empieza el día con calma."}
+                  {isLoading
+                    ? "…"
+                    : queue.length > 0
+                      ? isBirthday
+                        ? `Hoy es tu día. ${queue.length} ${queue.length === 1 ? "mensaje" : "mensajes"} de felicitación.`
+                        : queueData && queueData.queuedCount > 1
+                          ? `Tienes un mensaje. ${queueData.queuedCount - 1} más en la cola para otros días.`
+                          : "Tienes un mensaje esperando."
+                      : "Empieza el día con calma."}
                 </div>
                 <SwipeToWake onComplete={dismiss} />
               </div>
@@ -159,7 +234,12 @@ function WakePage() {
               <div className="space-y-6">
                 <div className="text-center">
                   <div className="text-[10px] tracking-[0.4em] uppercase opacity-70">de</div>
-                  <div className="font-display text-3xl mt-1">{currentMessage.sender?.display_name || currentMessage.sender?.username || "tu círculo"}</div>
+                  <div className="font-display text-3xl mt-1">
+                    {currentMessage.sender?.display_name || currentMessage.sender?.username || "tu círculo"}
+                  </div>
+                  {currentMessage.is_ai && (
+                    <div className="text-[10px] opacity-60 mt-1">Mensaje generado con IA</div>
+                  )}
                 </div>
                 {currentMessage.kind === "text" && (
                   <Typewriter text={currentMessage.text_content ?? ""} />
@@ -169,30 +249,35 @@ function WakePage() {
                     <div className="h-3 w-3 rounded-full bg-foreground/70 animate-pulse" />
                   </div>
                 )}
-                <div className="text-center text-xs opacity-60">{idx + 1} / {queue?.length}</div>
+                {isBirthday && queue.length > 1 && (
+                  <div className="text-center text-xs opacity-60">{idx + 1} / {queue.length}</div>
+                )}
+                <Button onClick={stopAlarmAndReact} className="w-full h-14 rounded-full bg-foreground text-background gap-2">
+                  <Square className="h-4 w-4" strokeWidth={1.5} /> Detener alarma
+                </Button>
               </div>
             )}
 
             {phase === "reacting" && (
               <ReactionPanel
-                lastMessage={(queue ?? [])[(queue?.length ?? 1) - 1] as WakeMessage | undefined}
+                lastMessage={queue[queue.length - 1]}
                 onReact={async (emoji) => {
-                  const last = (queue ?? [])[(queue?.length ?? 1) - 1] as WakeMessage | undefined;
-                  if (last) await reactFn({ data: { messageId: last.id, emoji } });
+                  const last = queue[queue.length - 1];
+                  if (last && last.id !== "ai") await reactFn({ data: { messageId: last.id, emoji } });
                   toast.success("Reacción enviada");
                   setPhase("done");
                 }}
                 onSave={async () => {
-                  const last = (queue ?? [])[(queue?.length ?? 1) - 1] as WakeMessage | undefined;
-                  if (last) {
+                  const last = queue[queue.length - 1];
+                  if (last && last.id !== "ai") {
                     const r = await saveFn({ data: { messageId: last.id, save: true } });
                     if (!r.ok) toast.message("Tienes 3 amaneceres guardados. Plan Sunrise llega pronto ✨");
                     else toast.success("Amanecer guardado");
                   }
                 }}
                 onRecord={async (blob, mime) => {
-                  const last = (queue ?? [])[(queue?.length ?? 1) - 1] as WakeMessage | undefined;
-                  if (!last) return;
+                  const last = queue[queue.length - 1];
+                  if (!last || last.id === "ai") { setPhase("done"); return; }
                   const ext = mime.includes("mp4") ? "mp4" : "webm";
                   const path = `${last.sender_id}/reaction-${Date.now()}.${ext}`;
                   const { supabase } = await import("@/integrations/supabase/client");
@@ -248,6 +333,7 @@ function SwipeToWake({ onComplete }: { onComplete: () => void }) {
 function Typewriter({ text }: { text: string }) {
   const [shown, setShown] = useState("");
   useEffect(() => {
+    setShown("");
     let i = 0;
     const t = setInterval(() => {
       i++;
@@ -321,7 +407,7 @@ function ReactionPanel({
           {recording ? `Grabando ${elapsed}/3s` : "Mantén para grabar 3s"}
         </Button>
         <Button variant="outline" className="rounded-full border-foreground/30 bg-transparent" onClick={onSave}>
-          <Star className="h-4 w-4" strokeWidth={1.5} />
+          ★
         </Button>
         <Button variant="ghost" className="rounded-full" onClick={onSkip}>Saltar</Button>
       </div>

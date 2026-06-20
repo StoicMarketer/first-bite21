@@ -19,6 +19,8 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedCircleRouteImport } from './routes/_authenticated/circle'
+import { Route as AuthenticatedChannelsRouteImport } from './routes/_authenticated/channels'
+import { Route as AuthenticatedChannelsSlugRouteImport } from './routes/_authenticated/channels.$slug'
 
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
@@ -69,28 +71,43 @@ const AuthenticatedCircleRoute = AuthenticatedCircleRouteImport.update({
   path: '/circle',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedChannelsRoute = AuthenticatedChannelsRouteImport.update({
+  id: '/channels',
+  path: '/channels',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedChannelsSlugRoute =
+  AuthenticatedChannelsSlugRouteImport.update({
+    id: '/$slug',
+    path: '/$slug',
+    getParentRoute: () => AuthenticatedChannelsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
+  '/channels': typeof AuthenticatedChannelsRouteWithChildren
   '/circle': typeof AuthenticatedCircleRoute
   '/home': typeof AuthenticatedHomeRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/wake': typeof AuthenticatedWakeRoute
   '/add/$code': typeof AddCodeRoute
+  '/channels/$slug': typeof AuthenticatedChannelsSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
+  '/channels': typeof AuthenticatedChannelsRouteWithChildren
   '/circle': typeof AuthenticatedCircleRoute
   '/home': typeof AuthenticatedHomeRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/wake': typeof AuthenticatedWakeRoute
   '/add/$code': typeof AddCodeRoute
+  '/channels/$slug': typeof AuthenticatedChannelsSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -98,12 +115,14 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
+  '/_authenticated/channels': typeof AuthenticatedChannelsRouteWithChildren
   '/_authenticated/circle': typeof AuthenticatedCircleRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/wake': typeof AuthenticatedWakeRoute
   '/add/$code': typeof AddCodeRoute
+  '/_authenticated/channels/$slug': typeof AuthenticatedChannelsSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,35 +130,41 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/onboarding'
+    | '/channels'
     | '/circle'
     | '/home'
     | '/inbox'
     | '/settings'
     | '/wake'
     | '/add/$code'
+    | '/channels/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/onboarding'
+    | '/channels'
     | '/circle'
     | '/home'
     | '/inbox'
     | '/settings'
     | '/wake'
     | '/add/$code'
+    | '/channels/$slug'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
     | '/onboarding'
+    | '/_authenticated/channels'
     | '/_authenticated/circle'
     | '/_authenticated/home'
     | '/_authenticated/inbox'
     | '/_authenticated/settings'
     | '/_authenticated/wake'
     | '/add/$code'
+    | '/_authenticated/channels/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -222,10 +247,38 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCircleRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/channels': {
+      id: '/_authenticated/channels'
+      path: '/channels'
+      fullPath: '/channels'
+      preLoaderRoute: typeof AuthenticatedChannelsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/channels/$slug': {
+      id: '/_authenticated/channels/$slug'
+      path: '/$slug'
+      fullPath: '/channels/$slug'
+      preLoaderRoute: typeof AuthenticatedChannelsSlugRouteImport
+      parentRoute: typeof AuthenticatedChannelsRoute
+    }
   }
 }
 
+interface AuthenticatedChannelsRouteChildren {
+  AuthenticatedChannelsSlugRoute: typeof AuthenticatedChannelsSlugRoute
+}
+
+const AuthenticatedChannelsRouteChildren: AuthenticatedChannelsRouteChildren = {
+  AuthenticatedChannelsSlugRoute: AuthenticatedChannelsSlugRoute,
+}
+
+const AuthenticatedChannelsRouteWithChildren =
+  AuthenticatedChannelsRoute._addFileChildren(
+    AuthenticatedChannelsRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedChannelsRoute: typeof AuthenticatedChannelsRouteWithChildren
   AuthenticatedCircleRoute: typeof AuthenticatedCircleRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
@@ -234,6 +287,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedChannelsRoute: AuthenticatedChannelsRouteWithChildren,
   AuthenticatedCircleRoute: AuthenticatedCircleRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,

@@ -1,100 +1,114 @@
+# Plan: cola diaria, alarma en bucle, cumpleaños y canales temáticos
 
-# Diagnóstico
+## 1. Una sola alarma por día (resto en cola)
 
-Comprobé los dos usuarios de prueba en la base de datos:
+**Regla:** cada día natural (zona horaria del usuario) se reproduce **un único mensaje recibido**. El resto queda en cola visible en la bandeja y se podrá escuchar bajo demanda; los mensajes no consumidos siguen disponibles al día siguiente, donde de nuevo se reproducirá solo uno.
 
-- **alex** (`alexmosqueracapdevila@gmail.com`) → alarma `07:00`, inactiva.
-- **elmarketer** (`elmarketerestoico@gmail.com`) → alarma `19:15`, inactiva.
-- Amistad aceptada de alex → elmarketer.
-- Hay **3 audios** enviados por alex a elmarketer hoy ~17:05 UTC, todos con `scheduled_for = 2026-06-21` y `is_played = false`.
+**Cambios:**
+- `messages`: añadir `played_on_date date` (null hasta que se entrega).
+- `getWakeQueue` (`src/lib/messages.functions.ts`): devolver **1 mensaje** elegido así, en este orden de prioridad:
+  1. Si ya hay un mensaje marcado con `played_on_date = hoy` y `is_played = false` → ese (continuación tras refresco).
+  2. Si no, el más antiguo `is_played = false` sin `played_on_date`, y al seleccionarlo, marcarlo con `played_on_date = hoy` (lock atómico por `UPDATE ... RETURNING`).
+  Además devuelve `queued_count` = mensajes pendientes restantes para mostrarlo en Home / bandeja.
+- Excepción cumpleaños (ver §3): si hoy es cumpleaños, devolver todos los pendientes en orden cronológico (sin el límite de 1).
+- `markPlayed` no cambia.
+- Bandeja (`/inbox`): nueva sección "En cola" con los pendientes; botón "Escuchar ahora" que lleva a `/wake?force=true&messageId=…`.
 
-## Por qué la alarma que sonó fue "la predeterminada" (zen)
+## 2. Alarma en bucle hasta que el usuario la apague
 
-Cuando se envió el audio, la alarma del receptor era todavía la default `07:00`. En `sendMessage` (src/lib/messages.functions.ts) se calcula `scheduled_for` así:
-1. Toma la hora de la alarma actual del receptor.
-2. Si esa hora ya pasó hoy, suma 1 día.
+- `wakeAudio.playClip(url)` admite `{ loop: true }` y se llama así en `wake.tsx` para el mensaje del día. El timbre de pre-despertar ya hace loop.
+- El paso `playing → reacting` ya **no** es automático al terminar el clip: solo termina si el usuario:
+  - desliza/pulsa **"Detener alarma"** (nuevo botón principal durante `playing`), que pasa a `reacting`.
+  - o pulsa **X** (cancela todo y sale a `/home`).
+- Mensajes de texto: se sintetiza con TTS en loop (re-`speak` al `onend`) hasta que el usuario detenga.
+- Cumpleaños: en lugar de loop infinito por mensaje, se encadenan los pendientes; cuando termina la lista, vuelve a empezar desde el primero hasta que el usuario detenga.
 
-Como 07:00 < 17:05, los mensajes quedaron fijados a **mañana**. Luego el usuario cambió la alarma a 19:15, pero los mensajes ya estaban "congelados" para el día siguiente.
+## 3. Fecha de nacimiento y excepción cumpleaños
 
-Resultado: al disparar `/wake` hoy, `getWakeQueue` filtra `scheduled_for <= hoy` → devuelve **lista vacía** → `playNext(0)` entra en la rama `if (list.length === 0) startZen()` → suena el oscilador zen de 196 Hz durante 30 s. Eso es "la alarma predeterminada".
+- Migración: `profiles.birthdate date null`, `profiles.birthday_unlimited boolean default true`.
+- **Signup (`src/routes/auth.tsx`)**: nuevo campo "Fecha de nacimiento" (solo en modo `signup`), guardado en `auth.signUp({ data: { birthdate } })`. El trigger `handle_new_user` lee `raw_user_meta_data->>'birthdate'` y lo escribe en `profiles.birthdate`.
+- **Onboarding**: si un usuario existente no tiene `birthdate`, se añade un paso opcional para capturarla (campo `<input type="date">`).
+- **Settings**: editar fecha de nacimiento y toggle "Alarmas ilimitadas el día de mi cumpleaños".
+- `getWakeQueue` calcula `isBirthday = (mm-dd de profile.birthdate == hoy en su tz)` y si es true + `birthday_unlimited`, omite el límite del §1.
 
-## Por qué se solapan/quedan sonidos sonando en /wake
+## 4. Canales temáticos con IA (modelo híbrido)
 
-En `src/routes/_authenticated/wake.tsx` hay tres fuentes de audio independientes sin un gestor común:
+**Concepto:** los usuarios se suscriben a "canales" (estilo Telegram). Cualquier suscriptor del canal puede enviar un despertar al resto. Si la bandeja personal está vacía, la app recurre a un mensaje generado por IA siguiendo el tono del canal favorito.
 
-1. **Tono de ringing** (`playGentleTone` + `toneInterval` cada 4 s). El `useEffect` lo limpia al cambiar de fase, pero `playGentleTone` crea su propio oscilador que se auto-apaga; ok.
-2. **Audio del mensaje** (`new Audio(signedUrl)`) guardado en `audioRef`.
-3. **Zen fallback** (`startZen`) que crea otro oscilador + gain dentro del `AudioContext` global, **sin guardarlos en ninguna ref**.
+### Esquema (migración)
 
-`stopAndExit` hace `audioRef.current?.pause()` y `zenRef.current?.pause()`, pero `zenRef` **nunca se asigna**, así que el oscilador del zen sigue corriendo dentro del AudioContext aunque el componente se desmonte y se navegue fuera. Ese es el "otro sonido que se queda activado".
+- `channels` (`id, slug, name, description, tone_prompt, voice, cover_url, is_official boolean, created_by uuid null`)
+- `channel_subscriptions` (`channel_id, user_id, joined_at, allow_send boolean default true, allow_receive boolean default true`) PK (channel_id, user_id)
+- `channel_messages` (`id, channel_id, sender_id, kind, text_content, audio_path, created_at`)
+- `messages`: añadir `channel_id uuid null` y `is_ai boolean default false` para distinguir el origen cuando un mensaje de canal se entrega a un usuario.
 
-Además, al deslizar para descartar, `dismiss()` cambia a fase `playing` y llama a `playNext(0)`; si la cola está vacía, lanza `startZen` mientras el `useEffect` de ringing aún está limpiándose en el mismo tick → momento en que pueden coincidir el último tono gentle y el inicio del zen.
+GRANTs + RLS:
+- `channels`: SELECT público (anon+auth) de oficiales; INSERT propios opcional más adelante.
+- `channel_subscriptions`: usuario gestiona las suyas.
+- `channel_messages`: SELECT solo si suscrito; INSERT si suscrito con `allow_send`.
 
-# Plan de implementación
+Canales oficiales semilla: **Productividad Estoica**, **Mentalidad Deportiva**, **Humor Absurdo**, **Mañanas Zen**, **Motivación Pop**, cada uno con `tone_prompt` específico.
 
-## 1. Entrega real de mensajes (fix de `scheduled_for`)
+### Flujo de envío en canal
 
-Archivo: `src/lib/messages.functions.ts`
+- `sendChannelMessage({channelId, kind, text|audioPath})`: inserta en `channel_messages`. Un job (`pg_cron` cada minuto) hace **fanout** a `messages` para cada suscriptor con `allow_receive = true` y `user_id != sender_id`, con `channel_id` propagado. Así reutilizamos toda la lógica de `getWakeQueue`, cola única y cumpleaños.
+- Para evitar saturar canales grandes: cada canal entrega máximo **1 mensaje por suscriptor por día** (regla aplicada en el fanout: si ya hay un `messages` de ese canal para ese receptor con `created_at::date = hoy`, no se duplica).
 
-- `getWakeQueue`: dejar de filtrar por `scheduled_for <= today`. Devolver **todos los mensajes no jugados** cuyo `created_at <= now()` para el `receiver_id`. Mantener `scheduled_for` solo como metadato informativo ("se entregará en tu próxima alarma").
-- `sendMessage`: seguir calculando `scheduled_for` para la UI del remitente (cuándo lo recibirá), pero usando la alarma activa del receptor; si la alarma está inactiva, marcar `scheduled_for = mañana` por convención. Esto ya no bloquea la entrega.
-- Efecto neto: los 3 audios de alex pasarán a entregarse en la próxima apertura de `/wake` de elmarketer, independientemente del cambio de alarma.
+### Fallback IA cuando la cola está vacía
 
-## 2. Disparo de la alarma (Home)
+- Nuevo `createServerFn getAiWakeMessage` (Lovable AI, modelo `google/gemini-3-flash-preview`):
+  - Input: canal favorito del usuario (primer `channel_subscriptions` por `joined_at`) o uno por defecto.
+  - Prompt = `channel.tone_prompt` + nombre del usuario + idioma. Salida: 1–2 frases.
+  - Genera audio opcional con `openai/gpt-4o-mini-tts` (voz del canal) y lo sube a `wake-audios` con `is_ai = true`.
+- `getWakeQueue`: si no hay pendientes humanos y `force` o es la hora de la alarma, devuelve el mensaje IA generado al vuelo. **No** se guarda como `messages` para no romper la regla "una por día"; vive solo en la sesión `/wake`.
 
-Archivo: `src/routes/_authenticated/home.tsx`
+### UI
 
-- Mantener el loop que navega a `/wake` cuando `Date.now() >= nextTriggerAt(alarmTime)` y `isActive`.
-- Añadir guarda anti-doble-disparo: si la URL ya es `/wake`, no re-navegar.
-- Dejar el modo simulación (`/wake?force=true`) intacto.
-
-## 3. Gestor único de audio para /wake
-
-Archivo nuevo: `src/lib/wake-audio.ts` con una clase singleton ligera `WakeAudio` que expone:
-
-```ts
-playRingLoop()      // tono suave + vibración cada 4s
-stopRing()
-playClip(url): Promise<void>   // resuelve al terminar; rechaza si error
-stopClip()
-playZen(): void     // arranca oscilador, guarda refs internos
-stopZen()
-stopAll()           // pausa <audio>, cancela osciladores, cancela speechSynthesis, limpia intervalos, vibrate(0)
-```
-
-Internamente guarda:
-- `currentAudio: HTMLAudioElement | null`
-- `zenOsc / zenGain` y un timer de auto-stop
-- `ringInterval`
-- Referencia al `AudioContext` con `disconnect()` real
-
-## 4. Refactor de `src/routes/_authenticated/wake.tsx`
-
-- Sustituir todos los `useRef<HTMLAudioElement>`, `toneInterval`, `startZen` inline y los efectos de audio por llamadas al `WakeAudio` singleton.
-- En cada transición de fase, llamar primero a `WakeAudio.stopAll()` y luego arrancar la fuente correspondiente (ring / clip / zen).
-- `useEffect(() => () => WakeAudio.stopAll(), [])` al desmontar.
-- Botón X (`stopAndExit`) y el final de `reacting → done` también llaman `stopAll()` antes de `navigate`.
-- TTS (`SpeechSynthesisUtterance`): registrar el `utterance` activo y cancelarlo en `stopAll()`.
-- Si `playClip` falla (URL caducada, formato no soportado), mostrar `toast.error` y avanzar al siguiente mensaje, en lugar de quedarse colgado.
-
-## 5. Verificación con los dos usuarios
-
-Una vez desplegado:
-1. Login como elmarketer → entrar a `/wake?force=true` → debe reproducir secuencialmente los 3 audios pendientes (signedUrl válida 5 min) y marcarlos `is_played=true`.
-2. Login como alex → enviar un audio nuevo de prueba → activar alarma de elmarketer a +2 min → en elmarketer, esperar a que Home dispare `/wake` automáticamente y reproduzca el nuevo audio.
-3. Pulsar X en cualquier fase → confirmar que ningún sonido continúa después de navegar fuera.
+- Nueva ruta `/_authenticated/channels` con: lista de canales, buscador, botón "Suscribirme", banner "Aparecer como contactable en este canal (compartir mi código)".
+- Detalle `/_authenticated/channels/$slug`: feed de últimos despertares del canal, miembros recientes y CTA "Enviar despertar al canal".
+- Tab nueva en `mobile-shell` (`Canales`) o entrada en `/circle` ("Explorar canales").
+- En `/circle`: si el usuario no tiene amigos, banner "Aún no tienes a nadie. Suscríbete a un canal" con 3 sugerencias.
 
 ## Detalles técnicos
 
-- **No** se tocan tablas ni RLS; solo se relaja el filtro de `scheduled_for` en lectura.
-- `WakeAudio` vive en cliente; usa el `AudioContext` ya creado por `getAudioContext()` en `src/lib/audio-context.ts`.
-- El oscilador zen se guarda en `this.zenOsc` y `this.zenGain`; `stopZen()` hace `gain.linearRampToValueAtTime(0.0001, now+0.3); osc.stop(now+0.4); osc.disconnect(); gain.disconnect();` y limpia el timer de auto-stop.
-- `stopAll` también ejecuta `window.speechSynthesis.cancel()` y `navigator.vibrate(0)`.
-- El loop de Home comprueba `location.pathname !== "/wake"` antes de navegar para evitar re-entradas.
+```text
+DB
+├─ messages              + played_on_date date, + channel_id uuid null, + is_ai bool
+├─ profiles              + birthdate date, + birthday_unlimited bool
+├─ channels              (nuevo)
+├─ channel_subscriptions (nuevo)
+└─ channel_messages      (nuevo)
 
-## Archivos afectados
+Server fns
+├─ getWakeQueue        → 1 msg/día (excepto cumpleaños), incluye queued_count
+├─ getAiWakeMessage    → fallback IA con tono de canal
+├─ subscribeChannel / unsubscribeChannel / listChannels / getChannel
+└─ sendChannelMessage  → inserta en channel_messages
 
-- `src/lib/messages.functions.ts` (lógica de cola)
-- `src/lib/wake-audio.ts` (nuevo gestor de audio)
-- `src/routes/_authenticated/wake.tsx` (refactor a gestor único)
-- `src/routes/_authenticated/home.tsx` (guarda anti-doble-disparo)
+Jobs
+└─ pg_cron "fanout_channel_messages" cada minuto → channel_messages → messages
+```
+
+## Archivos afectados (resumen)
+
+- `supabase` migrations (esquema + RLS + GRANTs + semilla canales + cron)
+- `src/lib/messages.functions.ts` — nueva lógica de cola y cumpleaños
+- `src/lib/channels.functions.ts` (nuevo)
+- `src/lib/ai-wake.functions.ts` (nuevo, Lovable AI)
+- `src/lib/wake-audio.ts` — soporte `{ loop }` y loop TTS
+- `src/routes/_authenticated/wake.tsx` — bucle hasta detener, cumpleaños
+- `src/routes/_authenticated/home.tsx` — badge "N en cola"
+- `src/routes/_authenticated/inbox.tsx` — sección "En cola"
+- `src/routes/_authenticated/circle.tsx` — fallback canales si vacío
+- `src/routes/_authenticated/channels.tsx` + `channels.$slug.tsx` (nuevos)
+- `src/routes/_authenticated/settings.tsx` — birthdate + toggle cumpleaños
+- `src/routes/auth.tsx` — campo fecha de nacimiento en signup
+- `src/routes/onboarding.tsx` — paso opcional birthdate
+- `src/components/mobile-shell.tsx` — tab "Canales"
+
+## Preguntas que asumo (avísame si cambian)
+
+- Zona horaria del "día": uso `profiles.timezone` ya existente.
+- "En cola" se mantiene **indefinidamente** hasta que el usuario los escuche o los archive.
+- IA solo se activa cuando no hay mensajes humanos pendientes; nunca duplica una alarma humana.
+- Los canales arrancan como **oficiales curados por nosotros** (5 semilla); canales creados por usuarios quedan fuera de esta entrega.

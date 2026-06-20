@@ -1,12 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, Zap, Bell, Volume2, Heart } from "lucide-react";
+import { LogOut, Zap, Bell, Volume2, Heart, Cake } from "lucide-react";
 import { toast } from "sonner";
 import { MobileShell } from "@/components/mobile-shell";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
-import { getMyOverview } from "@/lib/messages.functions";
+import { getMyOverview, updateProfile } from "@/lib/messages.functions";
 import { primeAudio } from "@/lib/audio-context";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -16,7 +18,14 @@ export const Route = createFileRoute("/_authenticated/settings")({
 function SettingsPage() {
   const navigate = useNavigate();
   const overviewFn = useServerFn(getMyOverview);
+  const updateProfileFn = useServerFn(updateProfile);
+  const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["overview"], queryFn: () => overviewFn() });
+
+  const updateMut = useMutation({
+    mutationFn: (p: { birthdate?: string | null; birthdayUnlimited?: boolean }) => updateProfileFn({ data: p }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["overview"] }); toast.success("Guardado"); },
+  });
 
   const signOut = useMutation({
     mutationFn: async () => {
@@ -56,6 +65,34 @@ function SettingsPage() {
         )}
 
         <div className="mt-8 space-y-2">
+          <Section title="Cumpleaños">
+            <div className="px-4 py-3.5 space-y-3">
+              <div className="flex items-center gap-3">
+                <Cake className="h-4 w-4" strokeWidth={1.5} />
+                <div className="flex-1 text-sm">Fecha de nacimiento</div>
+              </div>
+              <Input
+                type="date"
+                defaultValue={data?.profile?.birthdate ?? ""}
+                onBlur={(e) => {
+                  const v = e.target.value || null;
+                  if (v !== (data?.profile?.birthdate ?? null)) updateMut.mutate({ birthdate: v });
+                }}
+                className="rounded-xl bg-background"
+              />
+              <div className="flex items-start justify-between gap-3 pt-1">
+                <div className="flex-1">
+                  <div className="text-sm">Alarmas ilimitadas en mi cumpleaños</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Recibe todas las felicitaciones ese día, no solo una.</div>
+                </div>
+                <Switch
+                  checked={data?.profile?.birthday_unlimited ?? true}
+                  onCheckedChange={(v) => updateMut.mutate({ birthdayUnlimited: v })}
+                />
+              </div>
+            </div>
+          </Section>
+
           <Section title="Permisos">
             <SettingRow icon={Bell} label="Notificaciones" onClick={requestNotifications} />
             <SettingRow icon={Volume2} label="Desbloquear audio" onClick={unlockAudio} />
