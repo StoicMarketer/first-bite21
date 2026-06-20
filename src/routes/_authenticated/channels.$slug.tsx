@@ -21,12 +21,15 @@ function ChannelDetail() {
   const { slug } = Route.useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { user } = useAuth();
   const getFn = useServerFn(getChannel);
   const sendFn = useServerFn(sendChannelMessage);
   const subFn = useServerFn(subscribeChannel);
   const unsubFn = useServerFn(unsubscribeChannel);
   const updateSubFn = useServerFn(updateSubscription);
   const membersFn = useServerFn(getMembersWithCode);
+  const rotateFn = useServerFn(rotateInviteCode);
+  const deleteFn = useServerFn(deleteChannel);
 
   const { data, refetch } = useQuery({ queryKey: ["channel", slug], queryFn: () => getFn({ data: { slug } }) });
   const { data: members } = useQuery({
