@@ -160,8 +160,7 @@ export const getQueuedMessages = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const { data: today } = await supabase.rpc("fanout_channel_messages").then(() => ({ data: null })).catch(() => ({ data: null }));
-    void today;
+    try { await supabase.rpc("fanout_channel_messages"); } catch { /* noop */ }
     const { data: msgs } = await supabase
       .from("messages")
       .select("id, sender_id, kind, text_content, audio_path, created_at, channel_id")
