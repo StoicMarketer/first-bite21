@@ -74,7 +74,7 @@ export const updateChannel = createServerFn({ method: "POST" })
     if (data.coverEmoji !== undefined) patch.cover_emoji = data.coverEmoji;
     if (data.visibility !== undefined) patch.visibility = data.visibility;
     if (data.tonePrompt !== undefined) patch.tone_prompt = data.tonePrompt;
-    const { error } = await supabase.from("channels").update(patch).eq("id", data.channelId);
+    const { error } = await supabase.from("channels").update(patch as never).eq("id", data.channelId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
