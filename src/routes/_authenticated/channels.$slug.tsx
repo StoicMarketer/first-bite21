@@ -267,10 +267,12 @@ function InviteShareBlock({ channelName, inviteCode, isOwner, onRotate }: { chan
           className="flex-1 rounded-full"
           onClick={async () => {
             const shareData = { title: channelName, text: `Únete a ${channelName} en SurpriseWake`, url };
-            if (typeof navigator !== "undefined" && "share" in navigator) {
-              try { await (navigator as Navigator & { share: (d: ShareData) => Promise<void> }).share(shareData); } catch { /* cancelled */ }
-            } else {
-              navigator.clipboard.writeText(url); toast.success("Enlace copiado");
+            const nav = typeof navigator !== "undefined" ? (navigator as Navigator & { share?: (d: ShareData) => Promise<void> }) : null;
+            if (nav?.share) {
+              try { await nav.share(shareData); } catch { /* cancelled */ }
+            } else if (nav) {
+              await nav.clipboard.writeText(url);
+              toast.success("Enlace copiado");
             }
           }}
         >
