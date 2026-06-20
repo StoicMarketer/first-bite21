@@ -10,11 +10,15 @@ import { MobileShell } from "@/components/mobile-shell";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
+  validateSearch: (search: Record<string, unknown>) => ({
+    redirect: typeof search.redirect === "string" && search.redirect.startsWith("/") ? search.redirect : undefined,
+  }),
   component: AuthPage,
 });
 
 function AuthPage() {
   const navigate = useNavigate();
+  const search = Route.useSearch();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -52,6 +56,8 @@ function AuthPage() {
     if (pending) {
       sessionStorage.removeItem("pendingWakeCode");
       navigate({ to: "/add/$code", params: { code: pending } });
+    } else if (search.redirect) {
+      navigate({ href: search.redirect, replace: true });
     } else {
       navigate({ to: fallback });
     }
