@@ -124,6 +124,7 @@ export type Database = {
           timezone: string
           updated_at: string
           username: string
+          wake_code: string
         }
         Insert: {
           avatar_url?: string | null
@@ -135,6 +136,7 @@ export type Database = {
           timezone?: string
           updated_at?: string
           username: string
+          wake_code?: string
         }
         Update: {
           avatar_url?: string | null
@@ -146,6 +148,7 @@ export type Database = {
           timezone?: string
           updated_at?: string
           username?: string
+          wake_code?: string
         }
         Relationships: []
       }
@@ -192,7 +195,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_wake_code: { Args: never; Returns: string }
+      lookup_by_wake_code: {
+        Args: { _code: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          id: string
+          username: string
+          wake_code: string
+        }[]
+      }
+      regenerate_my_wake_code: { Args: never; Returns: string }
     }
     Enums: {
       friendship_status: "pending" | "accepted" | "blocked"
