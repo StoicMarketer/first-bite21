@@ -1,114 +1,83 @@
-# Plan: cola diaria, alarma en bucle, cumpleaños y canales temáticos
+## Canales creados por usuarios (Growth Loop)
 
-## 1. Una sola alarma por día (resto en cola)
+Cada usuario podrá crear su propio canal, invitar a su gente con un enlace/código corto, enviar despertares personales a todos sus suscriptores, y descubrir canales de otros. El esquema ya soporta `created_by` e `is_official` en `channels`, así que la base está lista — falta abrir el flujo de creación, invitación y descubrimiento.
 
-**Regla:** cada día natural (zona horaria del usuario) se reproduce **un único mensaje recibido**. El resto queda en cola visible en la bandeja y se podrá escuchar bajo demanda; los mensajes no consumidos siguen disponibles al día siguiente, donde de nuevo se reproducirá solo uno.
+### 1. Modelo de datos (migración)
 
-**Cambios:**
-- `messages`: añadir `played_on_date date` (null hasta que se entrega).
-- `getWakeQueue` (`src/lib/messages.functions.ts`): devolver **1 mensaje** elegido así, en este orden de prioridad:
-  1. Si ya hay un mensaje marcado con `played_on_date = hoy` y `is_played = false` → ese (continuación tras refresco).
-  2. Si no, el más antiguo `is_played = false` sin `played_on_date`, y al seleccionarlo, marcarlo con `played_on_date = hoy` (lock atómico por `UPDATE ... RETURNING`).
-  Además devuelve `queued_count` = mensajes pendientes restantes para mostrarlo en Home / bandeja.
-- Excepción cumpleaños (ver §3): si hoy es cumpleaños, devolver todos los pendientes en orden cronológico (sin el límite de 1).
-- `markPlayed` no cambia.
-- Bandeja (`/inbox`): nueva sección "En cola" con los pendientes; botón "Escuchar ahora" que lleva a `/wake?force=true&messageId=…`.
+Cambios a `channels`:
+- `invite_code text unique` — código corto (8 chars tipo wake_code) para `/c/<code>` o `/channels/join/<code>`.
+- `visibility text not null default 'unlisted'` con check `in ('public','unlisted','private')`:
+  - **public**: aparece en el directorio público a todos.
+  - **unlisted**: sólo accesible con el enlace de invitación (por defecto en canales de usuario).
+  - **private**: sólo accesible con invitación y previa aprobación del creador (futuro; v1 lo tratamos como unlisted con join manual).
+- `max_members int default 500` — tope blando para evitar abusos en v1.
+- `is_official` queda como hoy (canales semilla curados por el equipo).
 
-## 2. Alarma en bucle hasta que el usuario la apague
+Función + trigger:
+- `generate_channel_invite_code()` análogo a `generate_wake_code()`.
+- Trigger `before insert on channels` que rellena `invite_code` si está nulo y normaliza `slug` (lowercase, sin espacios) cuando lo crea un usuario.
 
-- `wakeAudio.playClip(url)` admite `{ loop: true }` y se llama así en `wake.tsx` para el mensaje del día. El timbre de pre-despertar ya hace loop.
-- El paso `playing → reacting` ya **no** es automático al terminar el clip: solo termina si el usuario:
-  - desliza/pulsa **"Detener alarma"** (nuevo botón principal durante `playing`), que pasa a `reacting`.
-  - o pulsa **X** (cancela todo y sale a `/home`).
-- Mensajes de texto: se sintetiza con TTS en loop (re-`speak` al `onend`) hasta que el usuario detenga.
-- Cumpleaños: en lugar de loop infinito por mensaje, se encadenan los pendientes; cuando termina la lista, vuelve a empezar desde el primero hasta que el usuario detenga.
+Políticas RLS nuevas:
+- `channels_insert_own`: `auth.uid() is not null` y `with check (created_by = auth.uid() and is_official = false)` — los usuarios sólo pueden crear canales no oficiales a su nombre.
+- `channels_update_own`: el creador puede editar `name, description, cover_emoji, visibility, tone_prompt, voice` de sus propios canales.
+- `channels_delete_own`: el creador puede borrar su canal (cascada ya hace el resto).
+- Ampliar `channels_public_select_official` → permitir también `visibility = 'public'` y "ver canal si conozco su `invite_code`" se resuelve vía RPC `SECURITY DEFINER` (`lookup_channel_by_invite`), no por RLS abierta.
 
-## 3. Fecha de nacimiento y excepción cumpleaños
+Tabla `channel_subscriptions`: ya sirve. Para canales privados (futuro) añadiremos `status` (`pending|active`), no en v1.
 
-- Migración: `profiles.birthdate date null`, `profiles.birthday_unlimited boolean default true`.
-- **Signup (`src/routes/auth.tsx`)**: nuevo campo "Fecha de nacimiento" (solo en modo `signup`), guardado en `auth.signUp({ data: { birthdate } })`. El trigger `handle_new_user` lee `raw_user_meta_data->>'birthdate'` y lo escribe en `profiles.birthdate`.
-- **Onboarding**: si un usuario existente no tiene `birthdate`, se añade un paso opcional para capturarla (campo `<input type="date">`).
-- **Settings**: editar fecha de nacimiento y toggle "Alarmas ilimitadas el día de mi cumpleaños".
-- `getWakeQueue` calcula `isBirthday = (mm-dd de profile.birthdate == hoy en su tz)` y si es true + `birthday_unlimited`, omite el límite del §1.
+Storage: nuevo bucket `channel-covers` (público en lectura) para portadas opcionales (`cover_url`). v1 sigue con emoji + opcional URL.
 
-## 4. Canales temáticos con IA (modelo híbrido)
+### 2. Funciones de servidor (`src/lib/channels.functions.ts`)
 
-**Concepto:** los usuarios se suscriben a "canales" (estilo Telegram). Cualquier suscriptor del canal puede enviar un despertar al resto. Si la bandeja personal está vacía, la app recurre a un mensaje generado por IA siguiendo el tono del canal favorito.
+Añadir:
+- `createChannel({ name, description, coverEmoji, visibility, tonePrompt?, voice? })` → inserta con `created_by = userId`, autosuscribe al creador (`allow_send=true, allow_receive=true, share_wake_code=true`) en la misma transacción (dos inserts). Devuelve `{ slug, inviteCode }`.
+- `updateChannel({ channelId, patch })` — sólo creador.
+- `deleteChannel({ channelId })` — sólo creador.
+- `myChannels()` → canales `created_by = userId`.
+- `lookupChannelByInvite({ code })` (RPC `security definer` en SQL) → devuelve metadatos mínimos del canal por `invite_code` aunque el usuario no esté suscrito, para la pantalla de aceptar invitación.
+- `joinByInvite({ code })` → resuelve canal y crea suscripción.
+- `rotateInviteCode({ channelId })` — opcional, sólo creador.
+- Extender `listChannels` para devolver sólo `is_official = true` o `visibility = 'public'` o aquellos donde el usuario ya está suscrito, ordenado por: mis canales primero, luego oficiales, luego públicos por miembros desc.
 
-### Esquema (migración)
+### 3. Rutas y UI
 
-- `channels` (`id, slug, name, description, tone_prompt, voice, cover_url, is_official boolean, created_by uuid null`)
-- `channel_subscriptions` (`channel_id, user_id, joined_at, allow_send boolean default true, allow_receive boolean default true`) PK (channel_id, user_id)
-- `channel_messages` (`id, channel_id, sender_id, kind, text_content, audio_path, created_at`)
-- `messages`: añadir `channel_id uuid null` y `is_ai boolean default false` para distinguir el origen cuando un mensaje de canal se entrega a un usuario.
+Nuevas rutas:
+- `src/routes/_authenticated/channels.new.tsx` — formulario de creación (nombre, descripción, emoji, visibilidad). Tras crear, redirige a `/channels/$slug` y muestra modal "Comparte tu canal" con el enlace `https://.../c/<invite_code>` + botón copiar + `navigator.share`.
+- `src/routes/c.$code.tsx` (**pública**, top-level) — landing de invitación: muestra nombre, descripción, miembros, CTA "Unirme". Si no hay sesión, redirige a `/auth?redirect=/c/<code>`. Tras login, autoejecuta `joinByInvite` y manda a `/channels/$slug`. Esto es el corazón del growth loop: link compartible que convierte visitantes en usuarios registrados y suscriptores.
+- `src/routes/_authenticated/channels.mine.tsx` — "Mis canales": lista de canales creados por mí con stats (miembros, mensajes esta semana) y acceso a editar.
 
-GRANTs + RLS:
-- `channels`: SELECT público (anon+auth) de oficiales; INSERT propios opcional más adelante.
-- `channel_subscriptions`: usuario gestiona las suyas.
-- `channel_messages`: SELECT solo si suscrito; INSERT si suscrito con `allow_send`.
+Cambios en rutas existentes:
+- `channels.tsx`: añadir botón flotante "Crear canal" + sección "Mis canales" arriba si existen.
+- `channels.$slug.tsx`: si soy el creador, mostrar panel admin (compartir enlace de invitación con copy/share, editar metadatos, ver lista de miembros, expulsar, rotar código). Mostrar siempre el enlace de invitación a cualquier suscriptor (para que cualquier miembro pueda invitar — multiplica el loop).
+- `home.tsx` / onboarding: añadir CTA "Crea tu canal y trae a tu gente" después del primer despertar enviado.
 
-Canales oficiales semilla: **Productividad Estoica**, **Mentalidad Deportiva**, **Humor Absurdo**, **Mañanas Zen**, **Motivación Pop**, cada uno con `tone_prompt` específico.
+### 4. Growth loop (UX)
 
-### Flujo de envío en canal
+Tras crear un canal:
+1. Modal "Tu canal está listo" con preview de un enlace `lovable.app/c/<code>` y tres opciones: Copiar, Compartir (WhatsApp/IG/SMS vía `navigator.share`), QR.
+2. Notificación in-app cuando alguien se une por tu enlace ("Marta se unió a tu canal Mañanas brutales").
+3. Al recibir el primer despertar desde un canal de un amigo, banner "¿Te gustó? Crea el tuyo y despierta a tu gente" → CTA a `/channels/new`.
+4. Cualquier miembro (no sólo el creador) puede reenviar la invitación → cada usuario es un nodo viral.
 
-- `sendChannelMessage({channelId, kind, text|audioPath})`: inserta en `channel_messages`. Un job (`pg_cron` cada minuto) hace **fanout** a `messages` para cada suscriptor con `allow_receive = true` y `user_id != sender_id`, con `channel_id` propagado. Así reutilizamos toda la lógica de `getWakeQueue`, cola única y cumpleaños.
-- Para evitar saturar canales grandes: cada canal entrega máximo **1 mensaje por suscriptor por día** (regla aplicada en el fanout: si ya hay un `messages` de ese canal para ese receptor con `created_at::date = hoy`, no se duplica).
+### 5. Detalles técnicos
 
-### Fallback IA cuando la cola está vacía
+- `invite_code` se usa también como path corto `/c/<code>` para que quepa en SMS/IG.
+- `lookupChannelByInvite` y `joinByInvite` son **públicos para lectura mínima** vía SECURITY DEFINER (no exponemos `tone_prompt` ni la lista de miembros aquí) — sólo `name, description, cover_emoji, member_count`.
+- `createChannel` valida nombre 3–40, descripción ≤140, emoji ≤4 chars, slug autogenerado a partir del nombre con sufijo numérico si colisiona.
+- En el fanout existente (`fanout_channel_messages`) no hace falta tocar nada: ya distribuye `channel_messages` a `messages` para todos los suscriptores con `allow_receive=true`, respetando 1 por día.
+- IA fallback: los canales de usuario no tienen `tone_prompt` semilla por defecto; la IA sólo dispara para canales oficiales o si el creador definió un prompt. Esto evita ruido para canales pequeños sin actividad.
+- Límite anti-spam v1: máximo 3 canales creados por usuario y 1 mensaje a canal cada 30 min (validación en server fn).
 
-- Nuevo `createServerFn getAiWakeMessage` (Lovable AI, modelo `google/gemini-3-flash-preview`):
-  - Input: canal favorito del usuario (primer `channel_subscriptions` por `joined_at`) o uno por defecto.
-  - Prompt = `channel.tone_prompt` + nombre del usuario + idioma. Salida: 1–2 frases.
-  - Genera audio opcional con `openai/gpt-4o-mini-tts` (voz del canal) y lo sube a `wake-audios` con `is_ai = true`.
-- `getWakeQueue`: si no hay pendientes humanos y `force` o es la hora de la alarma, devuelve el mensaje IA generado al vuelo. **No** se guarda como `messages` para no romper la regla "una por día"; vive solo en la sesión `/wake`.
+### 6. Orden de implementación
 
-### UI
+1. Migración (campos, RLS, función `generate_channel_invite_code`, trigger, RPCs `lookup_channel_by_invite` + `join_channel_by_invite`).
+2. Server fns nuevas + extensión de `listChannels`.
+3. Ruta pública `/c/$code` + autosuscripción tras login.
+4. UI `channels.new.tsx` + modal de compartir.
+5. Panel admin en `channels.$slug.tsx` + página `channels.mine.tsx`.
+6. CTAs de growth (home + post-recepción).
 
-- Nueva ruta `/_authenticated/channels` con: lista de canales, buscador, botón "Suscribirme", banner "Aparecer como contactable en este canal (compartir mi código)".
-- Detalle `/_authenticated/channels/$slug`: feed de últimos despertares del canal, miembros recientes y CTA "Enviar despertar al canal".
-- Tab nueva en `mobile-shell` (`Canales`) o entrada en `/circle` ("Explorar canales").
-- En `/circle`: si el usuario no tiene amigos, banner "Aún no tienes a nadie. Suscríbete a un canal" con 3 sugerencias.
+### Archivos afectados
 
-## Detalles técnicos
-
-```text
-DB
-├─ messages              + played_on_date date, + channel_id uuid null, + is_ai bool
-├─ profiles              + birthdate date, + birthday_unlimited bool
-├─ channels              (nuevo)
-├─ channel_subscriptions (nuevo)
-└─ channel_messages      (nuevo)
-
-Server fns
-├─ getWakeQueue        → 1 msg/día (excepto cumpleaños), incluye queued_count
-├─ getAiWakeMessage    → fallback IA con tono de canal
-├─ subscribeChannel / unsubscribeChannel / listChannels / getChannel
-└─ sendChannelMessage  → inserta en channel_messages
-
-Jobs
-└─ pg_cron "fanout_channel_messages" cada minuto → channel_messages → messages
-```
-
-## Archivos afectados (resumen)
-
-- `supabase` migrations (esquema + RLS + GRANTs + semilla canales + cron)
-- `src/lib/messages.functions.ts` — nueva lógica de cola y cumpleaños
-- `src/lib/channels.functions.ts` (nuevo)
-- `src/lib/ai-wake.functions.ts` (nuevo, Lovable AI)
-- `src/lib/wake-audio.ts` — soporte `{ loop }` y loop TTS
-- `src/routes/_authenticated/wake.tsx` — bucle hasta detener, cumpleaños
-- `src/routes/_authenticated/home.tsx` — badge "N en cola"
-- `src/routes/_authenticated/inbox.tsx` — sección "En cola"
-- `src/routes/_authenticated/circle.tsx` — fallback canales si vacío
-- `src/routes/_authenticated/channels.tsx` + `channels.$slug.tsx` (nuevos)
-- `src/routes/_authenticated/settings.tsx` — birthdate + toggle cumpleaños
-- `src/routes/auth.tsx` — campo fecha de nacimiento en signup
-- `src/routes/onboarding.tsx` — paso opcional birthdate
-- `src/components/mobile-shell.tsx` — tab "Canales"
-
-## Preguntas que asumo (avísame si cambian)
-
-- Zona horaria del "día": uso `profiles.timezone` ya existente.
-- "En cola" se mantiene **indefinidamente** hasta que el usuario los escuche o los archive.
-- IA solo se activa cuando no hay mensajes humanos pendientes; nunca duplica una alarma humana.
-- Los canales arrancan como **oficiales curados por nosotros** (5 semilla); canales creados por usuarios quedan fuera de esta entrega.
+Nuevos: migración SQL, `src/routes/_authenticated/channels.new.tsx`, `src/routes/_authenticated/channels.mine.tsx`, `src/routes/c.$code.tsx`, `src/components/share-channel-sheet.tsx`.
+Modificados: `src/lib/channels.functions.ts`, `src/routes/_authenticated/channels.tsx`, `src/routes/_authenticated/channels.$slug.tsx`, `src/routes/_authenticated/home.tsx`, `src/components/mobile-shell.tsx` (link a "Mis canales" desde el header de Canales).
