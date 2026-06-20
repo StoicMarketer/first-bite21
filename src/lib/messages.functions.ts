@@ -67,41 +67,123 @@ export const sendMessage = createServerFn({ method: "POST" })
   });
 
 // ============ Wake queue: messages due now for the current user ============
+// Rule: deliver only ONE message per natural day (receiver's day in their tz).
+// Exception: on the receiver's birthday with `birthday_unlimited`, deliver all.
+// A specific messageId can be requested to play a queued message on demand.
 export const getWakeQueue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => z.object({ force: z.boolean().optional() }).parse(i ?? {}))
+  .inputValidator((i: unknown) =>
+    z.object({ force: z.boolean().optional(), messageId: z.string().uuid().optional() }).parse(i ?? {})
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    // Deliver every unplayed message that already exists. scheduled_for is kept
-    // as informational metadata for the sender's UI, but it must not gate
-    // delivery — otherwise a receiver changing their alarm time after a message
-    // was sent would never receive it.
-    void data;
-    const { data: msgs, error } = await supabase
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("birthdate, birthday_unlimited, timezone")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const tz = profile?.timezone || "UTC";
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: tz }); // YYYY-MM-DD
+    const todayMD = today.slice(5);
+    const isBirthday = !!profile?.birthdate && profile.birthdate.slice(5) === todayMD && !!profile.birthday_unlimited;
+
+    // Fetch all unplayed messages for this user
+    const { data: pending, error } = await supabase
       .from("messages")
-      .select("id, sender_id, kind, audio_path, text_content, created_at")
+      .select("id, sender_id, kind, audio_path, text_content, created_at, played_on_date, channel_id, is_ai")
       .eq("receiver_id", userId)
       .eq("is_played", false)
       .order("created_at", { ascending: true });
     if (error) throw new Error(error.message);
 
-    const senderIds = Array.from(new Set((msgs ?? []).map((m) => m.sender_id)));
+    const all = pending ?? [];
+    const queuedCount = all.length;
+
+    let selected: typeof all = [];
+
+    if (data.messageId) {
+      // On-demand: play this specific message (and lock it to today)
+      const m = all.find((x) => x.id === data.messageId);
+      if (m) {
+        if (m.played_on_date !== today) {
+          await supabase.from("messages").update({ played_on_date: today }).eq("id", m.id);
+        }
+        selected = [m];
+      }
+    } else if (isBirthday) {
+      selected = all;
+    } else {
+      // Prefer a message already locked to today (continuation after refresh)
+      const locked = all.find((m) => m.played_on_date === today);
+      if (locked) {
+        selected = [locked];
+      } else {
+        const next = all.find((m) => m.played_on_date === null);
+        if (next) {
+          const { data: claim } = await supabase
+            .from("messages")
+            .update({ played_on_date: today })
+            .eq("id", next.id)
+            .is("played_on_date", null)
+            .select("id")
+            .maybeSingle();
+          if (claim) selected = [{ ...next, played_on_date: today }];
+        }
+      }
+    }
+
+    const senderIds = Array.from(new Set(selected.map((m) => m.sender_id)));
     const profiles = senderIds.length
       ? (await supabase.from("profiles").select("id, username, display_name, avatar_url").in("id", senderIds)).data ?? []
       : [];
 
     const enriched = await Promise.all(
-      (msgs ?? []).map(async (m) => {
+      selected.map(async (m) => {
         let signedUrl: string | null = null;
         if (m.kind === "audio" && m.audio_path) {
-          const { data: signed } = await supabase.storage.from("wake-audios").createSignedUrl(m.audio_path, 300);
+          const { data: signed } = await supabase.storage.from("wake-audios").createSignedUrl(m.audio_path, 600);
           signedUrl = signed?.signedUrl ?? null;
         }
         const sender = profiles.find((p) => p.id === m.sender_id);
         return { ...m, signedUrl, sender };
       })
     );
-    return enriched;
+
+    void data;
+    return { messages: enriched, queuedCount, isBirthday };
+  });
+
+// List pending messages for the inbox queued section (no claiming)
+export const getQueuedMessages = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data: today } = await supabase.rpc("fanout_channel_messages").then(() => ({ data: null })).catch(() => ({ data: null }));
+    void today;
+    const { data: msgs } = await supabase
+      .from("messages")
+      .select("id, sender_id, kind, text_content, audio_path, created_at, channel_id")
+      .eq("receiver_id", userId)
+      .eq("is_played", false)
+      .order("created_at", { ascending: true });
+    const list = msgs ?? [];
+    const senderIds = Array.from(new Set(list.map((m) => m.sender_id)));
+    const channelIds = Array.from(new Set(list.map((m) => m.channel_id).filter((x): x is string => !!x)));
+    const [{ data: profiles }, { data: channels }] = await Promise.all([
+      senderIds.length
+        ? supabase.from("profiles").select("id, username, display_name, avatar_url").in("id", senderIds)
+        : Promise.resolve({ data: [] }),
+      channelIds.length
+        ? supabase.from("channels").select("id, name, cover_emoji, slug").in("id", channelIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+    return list.map((m) => ({
+      ...m,
+      sender: (profiles ?? []).find((p) => p.id === m.sender_id) ?? null,
+      channel: m.channel_id ? (channels ?? []).find((c) => c.id === m.channel_id) ?? null : null,
+    }));
   });
 
 export const markPlayed = createServerFn({ method: "POST" })
