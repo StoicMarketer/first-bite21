@@ -31,11 +31,26 @@ function ChannelsPage() {
   return (
     <MobileShell>
       <div className="px-6 pt-12 pb-8">
-        <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground">Canales</div>
-        <h1 className="font-display text-4xl mt-2">Despierta con tu tribu.</h1>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground">Canales</div>
+            <h1 className="font-display text-4xl mt-2">Despierta con tu tribu.</h1>
+          </div>
+          <Link to="/channels/mine" className="text-xs text-muted-foreground underline pt-3">Mis canales</Link>
+        </div>
         <p className="text-sm text-muted-foreground mt-3">
-          Únete a un canal y recibe despertares de personas que comparten tu estilo. Mientras tu círculo crece, esto te acompaña.
+          Únete a un canal o crea el tuyo y trae a tu gente.
         </p>
+
+        <Link to="/channels/new" className="mt-5 block p-4 rounded-3xl bg-primary text-primary-foreground">
+          <div className="flex items-center gap-3">
+            <Plus className="h-5 w-5" strokeWidth={1.5} />
+            <div>
+              <div className="font-display text-base leading-tight">Crear mi canal</div>
+              <div className="text-xs opacity-80 mt-0.5">Invita a tu gente con un enlace</div>
+            </div>
+          </div>
+        </Link>
 
         <div className="mt-8 space-y-3">
           {channels?.map((c) => {
