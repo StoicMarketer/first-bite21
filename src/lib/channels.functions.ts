@@ -32,6 +32,7 @@ export const createChannel = createServerFn({ method: "POST" })
       .from("channels")
       .insert({
         name: data.name,
+        slug: "",
         description: data.description || null,
         cover_emoji: data.coverEmoji || "✨",
         visibility: data.visibility,
@@ -39,7 +40,7 @@ export const createChannel = createServerFn({ method: "POST" })
         voice: data.voice ?? "alloy",
         is_official: false,
         created_by: userId,
-      })
+      } as never)
       .select("id, slug, invite_code")
       .single();
     if (error) throw new Error(error.message);
