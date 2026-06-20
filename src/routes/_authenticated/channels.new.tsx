@@ -25,12 +25,23 @@ function NewChannel() {
   const [visibility, setVisibility] = useState<"public" | "unlisted">("unlisted");
 
   const create = useMutation({
-    mutationFn: () => createFn({ data: { name, description, coverEmoji: emoji, visibility } }),
+    mutationFn: async () => {
+      const payload = {
+        name: name.trim(),
+        description: description.trim(),
+        coverEmoji: emoji,
+        visibility,
+      };
+      return await createFn({ data: payload });
+    },
     onSuccess: (r) => {
       toast.success("Tu canal está listo");
-      navigate({ to: "/channels/$slug", params: { slug: r.slug }, search: { invite: r.inviteCode } as never });
+      navigate({ to: "/channels/$slug", params: { slug: r.slug } });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      console.error("createChannel failed", e);
+      toast.error(e?.message || "No se pudo crear el canal");
+    },
   });
 
   return (
