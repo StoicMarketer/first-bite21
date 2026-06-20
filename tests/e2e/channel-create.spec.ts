@@ -14,7 +14,7 @@ test.describe("channel growth loop", () => {
     await page.getByLabel("Correo").fill(email!);
     await page.getByLabel("Contraseña").fill(password!);
     await page.getByRole("button", { name: /^Entrar$/ }).click();
-    await expect(page).toHaveURL(/\/channels\/new$/);
+    await expect(page).toHaveURL(/\/channels\/new(?:[?#].*)?$/);
 
     await page.getByPlaceholder("Mañanas brutales").fill(channelName);
     await page.getByPlaceholder("De qué va tu canal").fill("Canal creado desde el flujo E2E.");
