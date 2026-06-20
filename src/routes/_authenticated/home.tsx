@@ -80,8 +80,8 @@ function HomePage() {
   }
 
   // preload wake queue (so we know if there are messages today)
-  const { data: queue } = useQuery({ queryKey: ["wakeQueue"], queryFn: () => wakeFn({ data: {} }), refetchInterval: 60_000 });
-  const queueCount = queue?.length ?? 0;
+  const { data: queueData } = useQuery({ queryKey: ["wakeQueue"], queryFn: () => wakeFn({ data: {} }), refetchInterval: 60_000 });
+  const queueCount = queueData?.queuedCount ?? 0;
 
   const username = overview?.profile?.display_name || overview?.profile?.username || "tú";
 
