@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, Zap, Bell, Volume2, Heart, Cake } from "lucide-react";
+import { LogOut, Zap, Bell, Volume2, Heart, Cake, Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { MobileShell } from "@/components/mobile-shell";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyOverview, updateProfile } from "@/lib/messages.functions";
 import { primeAudio } from "@/lib/audio-context";
+import { useTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
