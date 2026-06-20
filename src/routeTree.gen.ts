@@ -20,6 +20,7 @@ import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedCircleRouteImport } from './routes/_authenticated/circle'
 import { Route as AuthenticatedChannelsRouteImport } from './routes/_authenticated/channels'
+import { Route as AuthenticatedChannelsNewRouteImport } from './routes/_authenticated/channels.new'
 import { Route as AuthenticatedChannelsSlugRouteImport } from './routes/_authenticated/channels.$slug'
 
 const OnboardingRoute = OnboardingRouteImport.update({
@@ -76,6 +77,12 @@ const AuthenticatedChannelsRoute = AuthenticatedChannelsRouteImport.update({
   path: '/channels',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedChannelsNewRoute =
+  AuthenticatedChannelsNewRouteImport.update({
+    id: '/new',
+    path: '/new',
+    getParentRoute: () => AuthenticatedChannelsRoute,
+  } as any)
 const AuthenticatedChannelsSlugRoute =
   AuthenticatedChannelsSlugRouteImport.update({
     id: '/$slug',
@@ -95,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/wake': typeof AuthenticatedWakeRoute
   '/add/$code': typeof AddCodeRoute
   '/channels/$slug': typeof AuthenticatedChannelsSlugRoute
+  '/channels/new': typeof AuthenticatedChannelsNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -108,6 +116,7 @@ export interface FileRoutesByTo {
   '/wake': typeof AuthenticatedWakeRoute
   '/add/$code': typeof AddCodeRoute
   '/channels/$slug': typeof AuthenticatedChannelsSlugRoute
+  '/channels/new': typeof AuthenticatedChannelsNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -123,6 +132,7 @@ export interface FileRoutesById {
   '/_authenticated/wake': typeof AuthenticatedWakeRoute
   '/add/$code': typeof AddCodeRoute
   '/_authenticated/channels/$slug': typeof AuthenticatedChannelsSlugRoute
+  '/_authenticated/channels/new': typeof AuthenticatedChannelsNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/wake'
     | '/add/$code'
     | '/channels/$slug'
+    | '/channels/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/wake'
     | '/add/$code'
     | '/channels/$slug'
+    | '/channels/new'
   id:
     | '__root__'
     | '/'
@@ -165,6 +177,7 @@ export interface FileRouteTypes {
     | '/_authenticated/wake'
     | '/add/$code'
     | '/_authenticated/channels/$slug'
+    | '/_authenticated/channels/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -254,6 +267,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChannelsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/channels/new': {
+      id: '/_authenticated/channels/new'
+      path: '/new'
+      fullPath: '/channels/new'
+      preLoaderRoute: typeof AuthenticatedChannelsNewRouteImport
+      parentRoute: typeof AuthenticatedChannelsRoute
+    }
     '/_authenticated/channels/$slug': {
       id: '/_authenticated/channels/$slug'
       path: '/$slug'
@@ -266,10 +286,12 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedChannelsRouteChildren {
   AuthenticatedChannelsSlugRoute: typeof AuthenticatedChannelsSlugRoute
+  AuthenticatedChannelsNewRoute: typeof AuthenticatedChannelsNewRoute
 }
 
 const AuthenticatedChannelsRouteChildren: AuthenticatedChannelsRouteChildren = {
   AuthenticatedChannelsSlugRoute: AuthenticatedChannelsSlugRoute,
+  AuthenticatedChannelsNewRoute: AuthenticatedChannelsNewRoute,
 }
 
 const AuthenticatedChannelsRouteWithChildren =
