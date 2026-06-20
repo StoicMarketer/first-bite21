@@ -119,6 +119,31 @@ function ChannelDetail() {
           </Button>
         ) : (
           <>
+            <InviteShareBlock
+              channelName={channel.name}
+              inviteCode={channel.invite_code as string | null}
+              isOwner={!!user && channel.created_by === user.id}
+              onRotate={async () => { const r = await rotateFn({ data: { channelId: channel.id } }); refetch(); toast.success("Nuevo enlace generado"); return r.inviteCode; }}
+            />
+            {user && channel.created_by === user.id && !channel.is_official && (
+              <div className="mt-6 p-4 rounded-2xl bg-card border border-border space-y-3">
+                <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground">Administración</div>
+                <p className="text-xs text-muted-foreground">Eres el creador de este canal.</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive gap-1"
+                  onClick={async () => {
+                    if (!confirm("¿Eliminar canal? Esta acción no se puede deshacer.")) return;
+                    await deleteFn({ data: { channelId: channel.id } });
+                    toast.message("Canal eliminado");
+                    navigate({ to: "/channels" });
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} /> Eliminar canal
+                </Button>
+              </div>
+            )}
             <div className="mt-6 p-4 rounded-2xl bg-card border border-border space-y-3">
               <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground">Tu participación</div>
               <SwitchRow
