@@ -21,6 +21,7 @@ function SettingsPage() {
   const overviewFn = useServerFn(getMyOverview);
   const updateProfileFn = useServerFn(updateProfile);
   const qc = useQueryClient();
+  const [theme, setTheme] = useTheme();
   const { data } = useQuery({ queryKey: ["overview"], queryFn: () => overviewFn() });
 
   const updateMut = useMutation({
