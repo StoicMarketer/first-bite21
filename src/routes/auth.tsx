@@ -24,6 +24,12 @@ function AuthPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) return;
+      const pendingInvite = typeof window !== "undefined" ? sessionStorage.getItem("pendingInviteCode") : null;
+      if (pendingInvite) {
+        sessionStorage.removeItem("pendingInviteCode");
+        navigate({ to: "/c/$code", params: { code: pendingInvite } });
+        return;
+      }
       const pending = typeof window !== "undefined" ? sessionStorage.getItem("pendingWakeCode") : null;
       if (pending) {
         sessionStorage.removeItem("pendingWakeCode");
@@ -35,6 +41,12 @@ function AuthPage() {
   }, [navigate]);
 
   function consumePendingOrGo(fallback: "/home" | "/onboarding") {
+    const pendingInvite = typeof window !== "undefined" ? sessionStorage.getItem("pendingInviteCode") : null;
+    if (pendingInvite) {
+      sessionStorage.removeItem("pendingInviteCode");
+      navigate({ to: "/c/$code", params: { code: pendingInvite } });
+      return;
+    }
     const pending = typeof window !== "undefined" ? sessionStorage.getItem("pendingWakeCode") : null;
     if (pending) {
       sessionStorage.removeItem("pendingWakeCode");

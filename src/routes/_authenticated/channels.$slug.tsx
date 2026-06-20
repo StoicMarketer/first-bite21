@@ -1,16 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Send, Mic, Square, Users, Share2 } from "lucide-react";
+import { ArrowLeft, Send, Mic, Square, Users, Share2, Copy, RefreshCw, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { MobileShell } from "@/components/mobile-shell";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { getChannel, sendChannelMessage, subscribeChannel, unsubscribeChannel, updateSubscription, getMembersWithCode } from "@/lib/channels.functions";
+import { getChannel, sendChannelMessage, subscribeChannel, unsubscribeChannel, updateSubscription, getMembersWithCode, rotateInviteCode, deleteChannel } from "@/lib/channels.functions";
 import { startRecorder } from "@/lib/audio-context";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_authenticated/channels/$slug")({
   component: ChannelDetail,
@@ -20,12 +21,15 @@ function ChannelDetail() {
   const { slug } = Route.useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { user } = useAuth();
   const getFn = useServerFn(getChannel);
   const sendFn = useServerFn(sendChannelMessage);
   const subFn = useServerFn(subscribeChannel);
   const unsubFn = useServerFn(unsubscribeChannel);
   const updateSubFn = useServerFn(updateSubscription);
   const membersFn = useServerFn(getMembersWithCode);
+  const rotateFn = useServerFn(rotateInviteCode);
+  const deleteFn = useServerFn(deleteChannel);
 
   const { data, refetch } = useQuery({ queryKey: ["channel", slug], queryFn: () => getFn({ data: { slug } }) });
   const { data: members } = useQuery({
@@ -115,6 +119,31 @@ function ChannelDetail() {
           </Button>
         ) : (
           <>
+            <InviteShareBlock
+              channelName={channel.name}
+              inviteCode={channel.invite_code as string | null}
+              isOwner={!!user && channel.created_by === user.id}
+              onRotate={async () => { const r = await rotateFn({ data: { channelId: channel.id } }); refetch(); toast.success("Nuevo enlace generado"); return r.inviteCode; }}
+            />
+            {user && channel.created_by === user.id && !channel.is_official && (
+              <div className="mt-6 p-4 rounded-2xl bg-card border border-border space-y-3">
+                <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground">Administración</div>
+                <p className="text-xs text-muted-foreground">Eres el creador de este canal.</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive gap-1"
+                  onClick={async () => {
+                    if (!confirm("¿Eliminar canal? Esta acción no se puede deshacer.")) return;
+                    await deleteFn({ data: { channelId: channel.id } });
+                    toast.message("Canal eliminado");
+                    navigate({ to: "/channels" });
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} /> Eliminar canal
+                </Button>
+              </div>
+            )}
             <div className="mt-6 p-4 rounded-2xl bg-card border border-border space-y-3">
               <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground">Tu participación</div>
               <SwitchRow
@@ -207,6 +236,59 @@ function SwitchRow({ label, hint, checked, onChange }: { label: string; hint?: s
         {hint && <div className="text-xs text-muted-foreground mt-0.5">{hint}</div>}
       </div>
       <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
+function InviteShareBlock({ channelName, inviteCode, isOwner, onRotate }: { channelName: string; inviteCode: string | null; isOwner: boolean; onRotate: () => Promise<string>; }) {
+  const [code, setCode] = useState(inviteCode ?? "");
+  const url = typeof window !== "undefined" && code ? `${window.location.origin}/c/${code}` : "";
+
+  if (!code) return null;
+  return (
+    <div className="mt-6 p-4 rounded-2xl bg-card border border-border space-y-3">
+      <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground flex items-center gap-2">
+        <Share2 className="h-3 w-3" strokeWidth={1.5} /> Invitar a este canal
+      </div>
+      <div className="text-xs text-muted-foreground">Comparte este enlace con tu gente:</div>
+      <div className="flex items-center gap-2 p-2 rounded-xl bg-background border border-border">
+        <code className="text-xs flex-1 truncate font-mono">{url}</code>
+        <button
+          onClick={() => { navigator.clipboard.writeText(url); toast.success("Enlace copiado"); }}
+          className="p-1.5 rounded-lg hover:bg-accent"
+          aria-label="Copiar"
+        >
+          <Copy className="h-3.5 w-3.5" strokeWidth={1.5} />
+        </button>
+      </div>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          className="flex-1 rounded-full"
+          onClick={async () => {
+            const shareData = { title: channelName, text: `Únete a ${channelName} en SurpriseWake`, url };
+            const nav = typeof navigator !== "undefined" ? (navigator as Navigator & { share?: (d: ShareData) => Promise<void> }) : null;
+            if (nav?.share) {
+              try { await nav.share(shareData); } catch { /* cancelled */ }
+            } else if (nav) {
+              await nav.clipboard.writeText(url);
+              toast.success("Enlace copiado");
+            }
+          }}
+        >
+          Compartir
+        </Button>
+        {isOwner && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-full gap-1"
+            onClick={async () => { const c = await onRotate(); setCode(c); }}
+          >
+            <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.5} /> Rotar
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
