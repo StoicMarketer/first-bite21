@@ -97,7 +97,7 @@ export const updateSubscription = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const patch: Record<string, boolean> = {};
+    const patch: { allow_send?: boolean; allow_receive?: boolean; share_wake_code?: boolean } = {};
     if (data.allowSend !== undefined) patch.allow_send = data.allowSend;
     if (data.allowReceive !== undefined) patch.allow_receive = data.allowReceive;
     if (data.shareWakeCode !== undefined) patch.share_wake_code = data.shareWakeCode;
