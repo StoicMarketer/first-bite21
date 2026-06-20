@@ -42,7 +42,8 @@ function InviteLanding() {
 
   function handleJoin() {
     if (authed === false) {
-      navigate({ to: "/auth", search: { redirect: `/c/${code}` } as never });
+      if (typeof window !== "undefined") sessionStorage.setItem("pendingInviteCode", code);
+      navigate({ to: "/auth" });
       return;
     }
     join.mutate();
