@@ -1,16 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Send, Mic, Square, Users, Share2 } from "lucide-react";
+import { ArrowLeft, Send, Mic, Square, Users, Share2, Copy, RefreshCw, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { MobileShell } from "@/components/mobile-shell";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { getChannel, sendChannelMessage, subscribeChannel, unsubscribeChannel, updateSubscription, getMembersWithCode } from "@/lib/channels.functions";
+import { getChannel, sendChannelMessage, subscribeChannel, unsubscribeChannel, updateSubscription, getMembersWithCode, rotateInviteCode, deleteChannel } from "@/lib/channels.functions";
 import { startRecorder } from "@/lib/audio-context";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_authenticated/channels/$slug")({
   component: ChannelDetail,
