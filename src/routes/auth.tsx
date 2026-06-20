@@ -33,6 +33,16 @@ function AuthPage() {
     });
   }, [navigate]);
 
+  function consumePendingOrGo(fallback: "/home" | "/onboarding") {
+    const pending = typeof window !== "undefined" ? sessionStorage.getItem("pendingWakeCode") : null;
+    if (pending) {
+      sessionStorage.removeItem("pendingWakeCode");
+      navigate({ to: "/add/$code", params: { code: pending } });
+    } else {
+      navigate({ to: fallback });
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -48,11 +58,11 @@ function AuthPage() {
         });
         if (error) throw error;
         toast.success("Bienvenido — revisa tu correo si pedimos confirmación.");
-        navigate({ to: "/onboarding" });
+        consumePendingOrGo("/onboarding");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate({ to: "/home" });
+        consumePendingOrGo("/home");
       }
     } catch (err: unknown) {
       const m = err instanceof Error ? err.message : "Algo no salió bien";
