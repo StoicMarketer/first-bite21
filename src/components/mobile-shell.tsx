@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { AlarmClock, Users, Inbox, Settings } from "lucide-react";
+import { AlarmClock, Users, Inbox, Settings, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function MobileShell({ children, hideTabBar }: { children: ReactNode; hideTabBar?: boolean }) {
@@ -19,6 +19,7 @@ export function MobileShell({ children, hideTabBar }: { children: ReactNode; hid
 const TABS = [
   { to: "/home", label: "Alarma", icon: AlarmClock },
   { to: "/circle", label: "Círculo", icon: Users },
+  { to: "/channels", label: "Canales", icon: Radio },
   { to: "/inbox", label: "Recibidos", icon: Inbox },
   { to: "/settings", label: "Ajustes", icon: Settings },
 ] as const;
