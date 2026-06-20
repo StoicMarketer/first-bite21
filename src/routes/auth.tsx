@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { MobileShell } from "@/components/mobile-shell";
 
 export const Route = createFileRoute("/auth")({
+  ssr: false,
   component: AuthPage,
 });
 
