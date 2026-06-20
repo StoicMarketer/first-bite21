@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { ClientOnly, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,11 +9,16 @@ import { Label } from "@/components/ui/label";
 import { MobileShell } from "@/components/mobile-shell";
 
 export const Route = createFileRoute("/auth")({
-  component: AuthPage,
+  ssr: false,
+  validateSearch: (search: Record<string, unknown>) => ({
+    redirect: typeof search.redirect === "string" && search.redirect.startsWith("/") ? search.redirect : undefined,
+  }),
+  component: () => <ClientOnly><AuthPage /></ClientOnly>,
 });
 
 function AuthPage() {
   const navigate = useNavigate();
+  const search = Route.useSearch();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,6 +56,8 @@ function AuthPage() {
     if (pending) {
       sessionStorage.removeItem("pendingWakeCode");
       navigate({ to: "/add/$code", params: { code: pending } });
+    } else if (search.redirect) {
+      navigate({ href: search.redirect, replace: true });
     } else {
       navigate({ to: fallback });
     }

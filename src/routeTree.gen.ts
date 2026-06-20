@@ -21,6 +21,7 @@ import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedCircleRouteImport } from './routes/_authenticated/circle'
 import { Route as AuthenticatedChannelsRouteImport } from './routes/_authenticated/channels'
+import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels.index'
 import { Route as AuthenticatedChannelsNewRouteImport } from './routes/_authenticated/channels.new'
 import { Route as AuthenticatedChannelsMineRouteImport } from './routes/_authenticated/channels.mine'
 import { Route as AuthenticatedChannelsSlugRouteImport } from './routes/_authenticated/channels.$slug'
@@ -84,6 +85,12 @@ const AuthenticatedChannelsRoute = AuthenticatedChannelsRouteImport.update({
   path: '/channels',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedChannelsIndexRoute =
+  AuthenticatedChannelsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedChannelsRoute,
+  } as any)
 const AuthenticatedChannelsNewRoute =
   AuthenticatedChannelsNewRouteImport.update({
     id: '/new',
@@ -118,12 +125,12 @@ export interface FileRoutesByFullPath {
   '/channels/$slug': typeof AuthenticatedChannelsSlugRoute
   '/channels/mine': typeof AuthenticatedChannelsMineRoute
   '/channels/new': typeof AuthenticatedChannelsNewRoute
+  '/channels/': typeof AuthenticatedChannelsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
-  '/channels': typeof AuthenticatedChannelsRouteWithChildren
   '/circle': typeof AuthenticatedCircleRoute
   '/home': typeof AuthenticatedHomeRoute
   '/inbox': typeof AuthenticatedInboxRoute
@@ -134,6 +141,7 @@ export interface FileRoutesByTo {
   '/channels/$slug': typeof AuthenticatedChannelsSlugRoute
   '/channels/mine': typeof AuthenticatedChannelsMineRoute
   '/channels/new': typeof AuthenticatedChannelsNewRoute
+  '/channels': typeof AuthenticatedChannelsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -152,6 +160,7 @@ export interface FileRoutesById {
   '/_authenticated/channels/$slug': typeof AuthenticatedChannelsSlugRoute
   '/_authenticated/channels/mine': typeof AuthenticatedChannelsMineRoute
   '/_authenticated/channels/new': typeof AuthenticatedChannelsNewRoute
+  '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -170,12 +179,12 @@ export interface FileRouteTypes {
     | '/channels/$slug'
     | '/channels/mine'
     | '/channels/new'
+    | '/channels/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/onboarding'
-    | '/channels'
     | '/circle'
     | '/home'
     | '/inbox'
@@ -186,6 +195,7 @@ export interface FileRouteTypes {
     | '/channels/$slug'
     | '/channels/mine'
     | '/channels/new'
+    | '/channels'
   id:
     | '__root__'
     | '/'
@@ -203,6 +213,7 @@ export interface FileRouteTypes {
     | '/_authenticated/channels/$slug'
     | '/_authenticated/channels/mine'
     | '/_authenticated/channels/new'
+    | '/_authenticated/channels/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -300,6 +311,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChannelsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/channels/': {
+      id: '/_authenticated/channels/'
+      path: '/'
+      fullPath: '/channels/'
+      preLoaderRoute: typeof AuthenticatedChannelsIndexRouteImport
+      parentRoute: typeof AuthenticatedChannelsRoute
+    }
     '/_authenticated/channels/new': {
       id: '/_authenticated/channels/new'
       path: '/new'
@@ -328,12 +346,14 @@ interface AuthenticatedChannelsRouteChildren {
   AuthenticatedChannelsSlugRoute: typeof AuthenticatedChannelsSlugRoute
   AuthenticatedChannelsMineRoute: typeof AuthenticatedChannelsMineRoute
   AuthenticatedChannelsNewRoute: typeof AuthenticatedChannelsNewRoute
+  AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
 }
 
 const AuthenticatedChannelsRouteChildren: AuthenticatedChannelsRouteChildren = {
   AuthenticatedChannelsSlugRoute: AuthenticatedChannelsSlugRoute,
   AuthenticatedChannelsMineRoute: AuthenticatedChannelsMineRoute,
   AuthenticatedChannelsNewRoute: AuthenticatedChannelsNewRoute,
+  AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
 }
 
 const AuthenticatedChannelsRouteWithChildren =
