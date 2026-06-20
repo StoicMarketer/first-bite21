@@ -323,3 +323,22 @@ export const updateAlarm = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const updateProfile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) =>
+    z.object({
+      birthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+      birthdayUnlimited: z.boolean().optional(),
+    }).parse(i)
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const patch: { birthdate?: string | null; birthday_unlimited?: boolean } = {};
+    if (data.birthdate !== undefined) patch.birthdate = data.birthdate;
+    if (data.birthdayUnlimited !== undefined) patch.birthday_unlimited = data.birthdayUnlimited;
+    if (Object.keys(patch).length === 0) return { ok: true };
+    const { error } = await supabase.from("profiles").update(patch).eq("id", userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
