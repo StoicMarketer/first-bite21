@@ -95,6 +95,24 @@ function SettingsPage() {
             </div>
           </Section>
 
+          <Section title="Apariencia">
+            <div className="px-4 py-3.5 flex items-center gap-3">
+              {theme === "dark" ? (
+                <Moon className="h-4 w-4 text-[color:var(--ember)]" strokeWidth={1.5} />
+              ) : (
+                <Sun className="h-4 w-4 text-[color:var(--ember)]" strokeWidth={1.5} />
+              )}
+              <div className="flex-1">
+                <div className="text-sm">Modo oscuro</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Una estética nocturna, cálida y silenciosa.</div>
+              </div>
+              <Switch
+                checked={theme === "dark"}
+                onCheckedChange={(v) => setTheme(v ? "dark" : "light")}
+              />
+            </div>
+          </Section>
+
           <Section title="Permisos">
             <SettingRow icon={Bell} label="Notificaciones" onClick={requestNotifications} />
             <SettingRow icon={Volume2} label="Desbloquear audio" onClick={unlockAudio} />
