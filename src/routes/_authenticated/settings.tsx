@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, Zap, Bell, Volume2, Heart, Cake } from "lucide-react";
+import { LogOut, Zap, Bell, Volume2, Heart, Cake, Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { MobileShell } from "@/components/mobile-shell";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyOverview, updateProfile } from "@/lib/messages.functions";
 import { primeAudio } from "@/lib/audio-context";
+import { useTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -20,6 +21,7 @@ function SettingsPage() {
   const overviewFn = useServerFn(getMyOverview);
   const updateProfileFn = useServerFn(updateProfile);
   const qc = useQueryClient();
+  const [theme, setTheme] = useTheme();
   const { data } = useQuery({ queryKey: ["overview"], queryFn: () => overviewFn() });
 
   const updateMut = useMutation({
@@ -90,6 +92,24 @@ function SettingsPage() {
                   onCheckedChange={(v) => updateMut.mutate({ birthdayUnlimited: v })}
                 />
               </div>
+            </div>
+          </Section>
+
+          <Section title="Apariencia">
+            <div className="px-4 py-3.5 flex items-center gap-3">
+              {theme === "dark" ? (
+                <Moon className="h-4 w-4 text-[color:var(--ember)]" strokeWidth={1.5} />
+              ) : (
+                <Sun className="h-4 w-4 text-[color:var(--ember)]" strokeWidth={1.5} />
+              )}
+              <div className="flex-1">
+                <div className="text-sm">Modo oscuro</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Una estética nocturna, cálida y silenciosa.</div>
+              </div>
+              <Switch
+                checked={theme === "dark"}
+                onCheckedChange={(v) => setTheme(v ? "dark" : "light")}
+              />
             </div>
           </Section>
 
