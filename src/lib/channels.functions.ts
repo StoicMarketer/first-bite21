@@ -33,19 +33,23 @@ export const getChannel = createServerFn({ method: "POST" })
       .eq("user_id", userId)
       .maybeSingle();
 
-    const [{ count: memberCount }, { data: recent }] = await Promise.all([
-      supabase.from("channel_subscriptions").select("user_id", { count: "exact", head: true }).eq("channel_id", channel.id),
-      sub
-        ? supabase
-            .from("channel_messages")
-            .select("id, sender_id, kind, text_content, audio_path, created_at")
-            .eq("channel_id", channel.id)
-            .order("created_at", { ascending: false })
-            .limit(20)
-        : Promise.resolve({ data: [] as Array<{ id: string; sender_id: string; kind: string; text_content: string | null; audio_path: string | null; created_at: string }> }),
-    ]);
+    const { count: memberCount } = await supabase
+      .from("channel_subscriptions")
+      .select("user_id", { count: "exact", head: true })
+      .eq("channel_id", channel.id);
 
-    const senderIds = Array.from(new Set((recent.data ?? []).map((m) => m.sender_id)));
+    let recent: Array<{ id: string; sender_id: string; kind: string; text_content: string | null; audio_path: string | null; created_at: string }> = [];
+    if (sub) {
+      const r = await supabase
+        .from("channel_messages")
+        .select("id, sender_id, kind, text_content, audio_path, created_at")
+        .eq("channel_id", channel.id)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      recent = r.data ?? [];
+    }
+
+    const senderIds = Array.from(new Set(recent.map((m) => m.sender_id)));
     const profiles = senderIds.length
       ? (await supabase.from("profiles").select("id, username, display_name, avatar_url").in("id", senderIds)).data ?? []
       : [];
@@ -54,7 +58,7 @@ export const getChannel = createServerFn({ method: "POST" })
       channel,
       subscription: sub,
       memberCount: memberCount ?? 0,
-      recent: (recent.data ?? []).map((m) => ({ ...m, sender: profiles.find((p) => p.id === m.sender_id) ?? null })),
+      recent: recent.map((m) => ({ ...m, sender: profiles.find((p) => p.id === m.sender_id) ?? null })),
     };
   });
 
