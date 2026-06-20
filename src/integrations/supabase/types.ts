@@ -127,11 +127,14 @@ export type Database = {
           created_by: string | null
           description: string | null
           id: string
+          invite_code: string | null
           is_official: boolean
+          max_members: number
           name: string
           slug: string
           tone_prompt: string
           updated_at: string
+          visibility: string
           voice: string
         }
         Insert: {
@@ -140,11 +143,14 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          invite_code?: string | null
           is_official?: boolean
+          max_members?: number
           name: string
           slug: string
           tone_prompt: string
           updated_at?: string
+          visibility?: string
           voice?: string
         }
         Update: {
@@ -153,11 +159,14 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          invite_code?: string | null
           is_official?: boolean
+          max_members?: number
           name?: string
           slug?: string
           tone_prompt?: string
           updated_at?: string
+          visibility?: string
           voice?: string
         }
         Relationships: []
@@ -329,7 +338,9 @@ export type Database = {
     }
     Functions: {
       fanout_channel_messages: { Args: never; Returns: number }
+      generate_channel_invite_code: { Args: never; Returns: string }
       generate_wake_code: { Args: never; Returns: string }
+      join_channel_by_invite: { Args: { _code: string }; Returns: string }
       lookup_by_wake_code: {
         Args: { _code: string }
         Returns: {
@@ -338,6 +349,19 @@ export type Database = {
           id: string
           username: string
           wake_code: string
+        }[]
+      }
+      lookup_channel_by_invite: {
+        Args: { _code: string }
+        Returns: {
+          cover_emoji: string
+          description: string
+          id: string
+          is_official: boolean
+          member_count: number
+          name: string
+          slug: string
+          visibility: string
         }[]
       }
       regenerate_my_wake_code: { Args: never; Returns: string }
