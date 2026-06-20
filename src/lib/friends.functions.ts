@@ -116,3 +116,40 @@ export const getPendingRequests = createServerFn({ method: "GET" })
       return { friendshipId: r.id, user: p };
     });
   });
+
+// ============ Wake Code ============
+const normalizeCode = (raw: string) => raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+export const getMyWakeCode = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data, error } = await supabase.from("profiles").select("wake_code").eq("id", userId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return { wake_code: (data as { wake_code: string } | null)?.wake_code ?? null };
+  });
+
+export const lookupWakeCode = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ code: z.string().min(1).max(32) }).parse(i))
+  .handler(async ({ data, context }) => {
+    const code = normalizeCode(data.code);
+    if (code.length !== 8) throw new Error("El código debe tener 8 caracteres");
+    const { supabase, userId } = context;
+    const { data: rows, error } = await supabase.rpc("lookup_by_wake_code", { _code: code });
+    if (error) throw new Error(error.message);
+    const profile = Array.isArray(rows) ? rows[0] : rows;
+    if (!profile) return null;
+    if (profile.id === userId) throw new Error("Ese es tu propio código");
+    return profile as { id: string; username: string; display_name: string | null; avatar_url: string | null; wake_code: string };
+  });
+
+export const regenerateWakeCode = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data, error } = await supabase.rpc("regenerate_my_wake_code");
+    if (error) throw new Error(error.message);
+    return { wake_code: data as string };
+  });
+

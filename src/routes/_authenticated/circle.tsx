@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MobileShell } from "@/components/mobile-shell";
 import { searchUsers, sendFriendRequest, respondFriendRequest, getCircle, getPendingRequests } from "@/lib/friends.functions";
+import { WakeCodeCard } from "@/components/wake-code-card";
+import { AddByCode } from "@/components/add-by-code";
 
 export const Route = createFileRoute("/_authenticated/circle")({
   component: CirclePage,
@@ -53,11 +55,15 @@ function CirclePage() {
 
   return (
     <MobileShell>
-      <div className="px-6 pt-12">
+      <div className="px-6 pt-12 pb-8">
         <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground">Tu círculo</div>
         <h1 className="font-display text-4xl mt-2">Las personas que te despiertan.</h1>
 
-        <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) search.mutate(q.trim()); }} className="mt-8 flex gap-2">
+        <WakeCodeCard />
+        <AddByCode />
+
+        <div className="mt-8 text-[10px] tracking-[0.4em] uppercase text-muted-foreground">O busca por usuario</div>
+        <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) search.mutate(q.trim()); }} className="mt-3 flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por usuario…" className="pl-11 h-12 rounded-full bg-card border-border" />

@@ -22,7 +22,14 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/home" });
+      if (!data.session) return;
+      const pending = typeof window !== "undefined" ? sessionStorage.getItem("pendingWakeCode") : null;
+      if (pending) {
+        sessionStorage.removeItem("pendingWakeCode");
+        navigate({ to: "/add/$code", params: { code: pending } });
+      } else {
+        navigate({ to: "/home" });
+      }
     });
   }, [navigate]);
 
