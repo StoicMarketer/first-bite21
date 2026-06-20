@@ -239,3 +239,54 @@ function SwitchRow({ label, hint, checked, onChange }: { label: string; hint?: s
     </div>
   );
 }
+
+function InviteShareBlock({ channelName, inviteCode, isOwner, onRotate }: { channelName: string; inviteCode: string | null; isOwner: boolean; onRotate: () => Promise<string>; }) {
+  const [code, setCode] = useState(inviteCode ?? "");
+  const url = typeof window !== "undefined" && code ? `${window.location.origin}/c/${code}` : "";
+
+  if (!code) return null;
+  return (
+    <div className="mt-6 p-4 rounded-2xl bg-card border border-border space-y-3">
+      <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground flex items-center gap-2">
+        <Share2 className="h-3 w-3" strokeWidth={1.5} /> Invitar a este canal
+      </div>
+      <div className="text-xs text-muted-foreground">Comparte este enlace con tu gente:</div>
+      <div className="flex items-center gap-2 p-2 rounded-xl bg-background border border-border">
+        <code className="text-xs flex-1 truncate font-mono">{url}</code>
+        <button
+          onClick={() => { navigator.clipboard.writeText(url); toast.success("Enlace copiado"); }}
+          className="p-1.5 rounded-lg hover:bg-accent"
+          aria-label="Copiar"
+        >
+          <Copy className="h-3.5 w-3.5" strokeWidth={1.5} />
+        </button>
+      </div>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          className="flex-1 rounded-full"
+          onClick={async () => {
+            const shareData = { title: channelName, text: `Únete a ${channelName} en SurpriseWake`, url };
+            if (typeof navigator !== "undefined" && "share" in navigator) {
+              try { await (navigator as Navigator & { share: (d: ShareData) => Promise<void> }).share(shareData); } catch { /* cancelled */ }
+            } else {
+              navigator.clipboard.writeText(url); toast.success("Enlace copiado");
+            }
+          }}
+        >
+          Compartir
+        </Button>
+        {isOwner && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-full gap-1"
+            onClick={async () => { const c = await onRotate(); setCode(c); }}
+          >
+            <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.5} /> Rotar
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
