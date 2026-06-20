@@ -18,6 +18,7 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
+  const [birthdate, setBirthdate] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -53,7 +54,7 @@ function AuthPage() {
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/onboarding`,
-            data: { username, full_name: username },
+            data: { username, full_name: username, birthdate: birthdate || null },
           },
         });
         if (error) throw error;
@@ -94,10 +95,17 @@ function AuthPage() {
 
         <form onSubmit={submit} className="mt-10 space-y-4">
           {mode === "signup" && (
-            <div className="space-y-1.5">
-              <Label htmlFor="username" className="text-xs uppercase tracking-wider text-muted-foreground">Usuario</Label>
-              <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} required minLength={2} maxLength={24} className="rounded-2xl h-12 border-border bg-card" />
-            </div>
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="username" className="text-xs uppercase tracking-wider text-muted-foreground">Usuario</Label>
+                <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} required minLength={2} maxLength={24} className="rounded-2xl h-12 border-border bg-card" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="birthdate" className="text-xs uppercase tracking-wider text-muted-foreground">Fecha de nacimiento</Label>
+                <Input id="birthdate" type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} className="rounded-2xl h-12 border-border bg-card" />
+                <p className="text-[10px] text-muted-foreground">El día de tu cumpleaños podrás recibir todas las felicitaciones, no solo una.</p>
+              </div>
+            </>
           )}
           <div className="space-y-1.5">
             <Label htmlFor="email" className="text-xs uppercase tracking-wider text-muted-foreground">Correo</Label>
