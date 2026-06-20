@@ -19,6 +19,7 @@ import "@fontsource/inter-tight/500.css";
 import "@fontsource/inter-tight/600.css";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
+import { themeInitScript } from "@/lib/theme";
 
 function NotFoundComponent() {
   return (
