@@ -2,13 +2,14 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { motion, useMotionValue, useTransform } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { ChevronRight, Star, X } from "lucide-react";
 import { MobileShell } from "@/components/mobile-shell";
 import { Button } from "@/components/ui/button";
 import { getWakeQueue, markPlayed, saveMessage, sendReaction, updateAlarm } from "@/lib/messages.functions";
-import { getAudioContext, playGentleTone, primeAudio, startRecorder, vibratePattern } from "@/lib/audio-context";
+import { primeAudio, startRecorder } from "@/lib/audio-context";
+import { wakeAudio } from "@/lib/wake-audio";
 import { toast } from "sonner";
 
 const search = z.object({ force: z.boolean().optional() });
@@ -45,43 +46,38 @@ function WakePage() {
   const [phase, setPhase] = useState<"ringing" | "playing" | "reacting" | "done">("ringing");
   const [idx, setIdx] = useState(0);
   const [now, setNow] = useState(new Date());
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const zenRef = useRef<HTMLAudioElement | null>(null);
-  const toneInterval = useRef<number | null>(null);
+  const cancelledRef = useRef(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // Ringing: vibrate + gentle tone every 4s
+  useEffect(() => {
+    return () => {
+      cancelledRef.current = true;
+      wakeAudio.stopAll();
+    };
+  }, []);
+
   useEffect(() => {
     if (phase !== "ringing") return;
-    vibratePattern([400, 200, 400, 200, 800]);
-    playGentleTone(1.2).catch(() => {});
-    toneInterval.current = window.setInterval(() => {
-      vibratePattern([400, 200, 400]);
-      playGentleTone(1.0).catch(() => {});
-    }, 4000);
-    return () => {
-      if (toneInterval.current) window.clearInterval(toneInterval.current);
-    };
+    wakeAudio.playRingLoop();
+    return () => wakeAudio.stopRing();
   }, [phase]);
 
-  async function dismiss() {
-    if (toneInterval.current) window.clearInterval(toneInterval.current);
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(0);
-    await primeAudio();
-    setPhase("playing");
-    await playNext(0);
-  }
-
-  async function playNext(i: number) {
+  const playNext = useCallback(async (i: number) => {
+    if (cancelledRef.current) return;
     const list = queue ?? [];
     if (i >= list.length) {
-      // Fallback zen loop if no messages
       if (list.length === 0) {
-        startZen();
+        wakeAudio.playZen(30000);
+        window.setTimeout(() => {
+          if (!cancelledRef.current) {
+            wakeAudio.stopZen();
+            setPhase("done");
+          }
+        }, 30000);
       } else {
         setPhase("reacting");
       }
@@ -90,67 +86,41 @@ function WakePage() {
     setIdx(i);
     const msg = list[i] as WakeMessage;
     if (msg.kind === "audio" && msg.signedUrl) {
-      const a = new Audio(msg.signedUrl);
-      audioRef.current = a;
-      a.onended = async () => {
-        await markFn({ data: { messageId: msg.id } });
-        await playNext(i + 1);
-      };
-      try { await a.play(); } catch { /* will resume on tap */ }
-    } else if (msg.kind === "text" && msg.text_content) {
-      // Show typewriter + optional TTS
       try {
-        const u = new SpeechSynthesisUtterance(msg.text_content);
-        u.lang = "es-ES";
-        u.rate = 0.95;
-        u.onend = async () => {
-          await markFn({ data: { messageId: msg.id } });
-          await playNext(i + 1);
-        };
-        window.speechSynthesis.speak(u);
+        await wakeAudio.playClip(msg.signedUrl);
+        await markFn({ data: { messageId: msg.id } });
       } catch {
-        setTimeout(async () => {
-          await markFn({ data: { messageId: msg.id } });
-          await playNext(i + 1);
-        }, 5000);
+        toast.error("No se pudo reproducir el audio, saltando…");
       }
+      if (!cancelledRef.current) await playNext(i + 1);
+    } else if (msg.kind === "text" && msg.text_content) {
+      await wakeAudio.speak(msg.text_content);
+      try { await markFn({ data: { messageId: msg.id } }); } catch { /* ignore */ }
+      if (!cancelledRef.current) await playNext(i + 1);
     } else {
       await playNext(i + 1);
     }
-  }
+  }, [queue, markFn]);
 
-  function startZen() {
-    try {
-      const c = getAudioContext();
-      const osc = c.createOscillator();
-      const g = c.createGain();
-      osc.type = "sine";
-      osc.frequency.value = 196;
-      g.gain.setValueAtTime(0.0001, c.currentTime);
-      g.gain.linearRampToValueAtTime(0.08, c.currentTime + 4);
-      osc.connect(g);
-      g.connect(c.destination);
-      osc.start();
-      // Stop after 30s
-      setTimeout(() => {
-        g.gain.linearRampToValueAtTime(0.0001, c.currentTime + 1);
-        osc.stop(c.currentTime + 1.1);
-        setPhase("done");
-      }, 30000);
-    } catch {
-      setPhase("done");
-    }
+  async function dismiss() {
+    wakeAudio.stopRing();
+    await primeAudio();
+    setPhase("playing");
+    await playNext(0);
   }
 
   async function stopAndExit(disableAlarm = true) {
-    audioRef.current?.pause();
-    zenRef.current?.pause();
-    if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
-    if (toneInterval.current) window.clearInterval(toneInterval.current);
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(0);
+    cancelledRef.current = true;
+    wakeAudio.stopAll();
     if (disableAlarm && !force) {
-      // Auto-disable so it doesn't refire immediately
-      try { await updateAlarmFn({ data: { alarmTime: `${String(new Date().getHours()).padStart(2, "0")}:${String(new Date().getMinutes()).padStart(2, "0")}`, isActive: false } }); } catch { /* ignore */ }
+      try {
+        await updateAlarmFn({
+          data: {
+            alarmTime: `${String(new Date().getHours()).padStart(2, "0")}:${String(new Date().getMinutes()).padStart(2, "0")}`,
+            isActive: false,
+          },
+        });
+      } catch { /* ignore */ }
     }
     navigate({ to: "/home" });
   }

@@ -72,15 +72,17 @@ export const getWakeQueue = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ force: z.boolean().optional() }).parse(i ?? {}))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const today = new Date().toISOString().slice(0, 10);
-    const filter = supabase
+    // Deliver every unplayed message that already exists. scheduled_for is kept
+    // as informational metadata for the sender's UI, but it must not gate
+    // delivery — otherwise a receiver changing their alarm time after a message
+    // was sent would never receive it.
+    void data;
+    const { data: msgs, error } = await supabase
       .from("messages")
       .select("id, sender_id, kind, audio_path, text_content, created_at")
       .eq("receiver_id", userId)
       .eq("is_played", false)
       .order("created_at", { ascending: true });
-    const query = data.force ? filter : filter.lte("scheduled_for", today);
-    const { data: msgs, error } = await query;
     if (error) throw new Error(error.message);
 
     const senderIds = Array.from(new Set((msgs ?? []).map((m) => m.sender_id)));

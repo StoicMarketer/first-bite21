@@ -51,7 +51,9 @@ function HomePage() {
     const target = nextTriggerAt(alarmTime);
     const i = setInterval(() => {
       if (Date.now() >= target.getTime()) {
-        navigate({ to: "/wake" });
+        if (typeof window !== "undefined" && window.location.pathname !== "/wake") {
+          navigate({ to: "/wake" });
+        }
       }
     }, 1000);
     return () => clearInterval(i);
