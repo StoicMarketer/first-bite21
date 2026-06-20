@@ -127,7 +127,7 @@ function HomePage() {
           <div className="mt-5 flex items-center justify-center gap-2">
             <TimeColumn value={editH} max={23} onChange={(h) => setTime(h, editM)} />
             <span className="font-display text-3xl">:</span>
-            <TimeColumn value={editM} max={59} step={5} onChange={(m) => setTime(editH, m)} />
+            <TimeColumn value={editM} max={59} onChange={(m) => setTime(editH, m)} />
           </div>
         </div>
 
