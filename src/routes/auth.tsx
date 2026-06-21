@@ -163,7 +163,42 @@ function AuthPage() {
           <Button type="submit" disabled={busy} className="w-full h-12 rounded-full text-sm tracking-wide">
             {mode === "signup" ? "Crear cuenta" : "Entrar"}
           </Button>
+
+          {mode === "signin" && !forgotOpen && (
+            <button
+              type="button"
+              onClick={() => { setForgotOpen(true); setForgotEmail(email); }}
+              className="block w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+          )}
         </form>
+
+        {forgotOpen && (
+          <form onSubmit={sendReset} className="mt-4 space-y-3 rounded-2xl border border-border bg-card p-4">
+            <Label htmlFor="forgot-email" className="text-xs uppercase tracking-wider text-muted-foreground">
+              Email para recuperar
+            </Label>
+            <Input
+              id="forgot-email"
+              type="email"
+              value={forgotEmail}
+              onChange={(e) => setForgotEmail(e.target.value)}
+              required
+              className="rounded-2xl h-11 border-border bg-background"
+            />
+            <div className="flex gap-2">
+              <Button type="submit" disabled={busy} className="flex-1 h-11 rounded-full text-sm">
+                Enviar enlace
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setForgotOpen(false)} className="h-11 rounded-full text-sm">
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        )}
+
 
         <div className="flex items-center gap-3 my-6 text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
           <div className="flex-1 h-px bg-border" /> o <div className="flex-1 h-px bg-border" />
