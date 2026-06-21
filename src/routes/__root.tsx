@@ -123,6 +123,31 @@ function RootComponent() {
     return () => sub.subscription.unsubscribe();
   }, [router, queryClient]);
 
+  // Service worker: register early so push subscription is possible later.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const h = window.location.hostname;
+    const isPreview =
+      h.startsWith("id-preview--") ||
+      h.startsWith("preview--") ||
+      h.endsWith(".lovableproject.com") ||
+      h.endsWith(".lovableproject-dev.com") ||
+      window.self !== window.top;
+    if (isPreview && !window.location.search.includes("sw=on")) return;
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((err) => {
+      console.warn("[sw] register failed", err);
+    });
+    const onMsg = (ev: MessageEvent) => {
+      const data = ev.data as { type?: string; url?: string } | null;
+      if (data?.type === "wake-navigate" && data.url) {
+        window.location.assign(data.url);
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", onMsg);
+    return () => navigator.serviceWorker.removeEventListener("message", onMsg);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
