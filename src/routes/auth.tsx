@@ -100,8 +100,28 @@ function AuthPage() {
     if (res.error) {
       toast.error("No se pudo iniciar sesión con Google");
       setBusy(false);
+  }
+
+  async function sendReset(e: React.FormEvent) {
+    e.preventDefault();
+    if (!forgotEmail) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      toast.success("Te enviamos un correo para restablecer tu contraseña.");
+      setForgotOpen(false);
+      setForgotEmail("");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "No se pudo enviar el correo");
+    } finally {
+      setBusy(false);
     }
   }
+
+
 
   return (
     <MobileShell hideTabBar>
