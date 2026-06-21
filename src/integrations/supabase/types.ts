@@ -19,6 +19,8 @@ export type Database = {
           alarm_time: string
           id: string
           is_active: boolean
+          last_fired_at: string | null
+          last_fired_on: string | null
           next_trigger_at: string | null
           timezone: string
           updated_at: string
@@ -28,6 +30,8 @@ export type Database = {
           alarm_time?: string
           id?: string
           is_active?: boolean
+          last_fired_at?: string | null
+          last_fired_on?: string | null
           next_trigger_at?: string | null
           timezone?: string
           updated_at?: string
@@ -37,6 +41,8 @@ export type Database = {
           alarm_time?: string
           id?: string
           is_active?: boolean
+          last_fired_at?: string | null
+          last_fired_on?: string | null
           next_trigger_at?: string | null
           timezone?: string
           updated_at?: string
@@ -291,6 +297,39 @@ export type Database = {
           updated_at?: string
           username?: string
           wake_code?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          last_seen_at: string
+          p256dh: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          last_seen_at?: string
+          p256dh: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          last_seen_at?: string
+          p256dh?: string
+          user_agent?: string | null
+          user_id?: string
         }
         Relationships: []
       }
