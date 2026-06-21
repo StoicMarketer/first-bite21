@@ -100,7 +100,10 @@ function AuthPage() {
     if (res.error) {
       toast.error("No se pudo iniciar sesión con Google");
       setBusy(false);
+    }
   }
+
+
 
   async function sendReset(e: React.FormEvent) {
     e.preventDefault();
