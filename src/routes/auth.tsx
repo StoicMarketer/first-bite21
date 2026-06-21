@@ -25,6 +25,8 @@ function AuthPage() {
   const [username, setUsername] = useState("");
   const [birthdate, setBirthdate] = useState("");
   const [busy, setBusy] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
