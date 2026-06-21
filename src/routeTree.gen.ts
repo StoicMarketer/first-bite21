@@ -25,6 +25,7 @@ import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedChannelsNewRouteImport } from './routes/_authenticated/channels.new'
 import { Route as AuthenticatedChannelsMineRouteImport } from './routes/_authenticated/channels.mine'
 import { Route as AuthenticatedChannelsSlugRouteImport } from './routes/_authenticated/channels.$slug'
+import { Route as ApiPublicHooksWakeTickRouteImport } from './routes/api/public/hooks/wake-tick'
 
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
@@ -109,6 +110,11 @@ const AuthenticatedChannelsSlugRoute =
     path: '/$slug',
     getParentRoute: () => AuthenticatedChannelsRoute,
   } as any)
+const ApiPublicHooksWakeTickRoute = ApiPublicHooksWakeTickRouteImport.update({
+  id: '/api/public/hooks/wake-tick',
+  path: '/api/public/hooks/wake-tick',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -126,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/channels/mine': typeof AuthenticatedChannelsMineRoute
   '/channels/new': typeof AuthenticatedChannelsNewRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
+  '/api/public/hooks/wake-tick': typeof ApiPublicHooksWakeTickRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -142,6 +149,7 @@ export interface FileRoutesByTo {
   '/channels/mine': typeof AuthenticatedChannelsMineRoute
   '/channels/new': typeof AuthenticatedChannelsNewRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
+  '/api/public/hooks/wake-tick': typeof ApiPublicHooksWakeTickRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/_authenticated/channels/mine': typeof AuthenticatedChannelsMineRoute
   '/_authenticated/channels/new': typeof AuthenticatedChannelsNewRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
+  '/api/public/hooks/wake-tick': typeof ApiPublicHooksWakeTickRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -180,6 +189,7 @@ export interface FileRouteTypes {
     | '/channels/mine'
     | '/channels/new'
     | '/channels/'
+    | '/api/public/hooks/wake-tick'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -196,6 +206,7 @@ export interface FileRouteTypes {
     | '/channels/mine'
     | '/channels/new'
     | '/channels'
+    | '/api/public/hooks/wake-tick'
   id:
     | '__root__'
     | '/'
@@ -214,6 +225,7 @@ export interface FileRouteTypes {
     | '/_authenticated/channels/mine'
     | '/_authenticated/channels/new'
     | '/_authenticated/channels/'
+    | '/api/public/hooks/wake-tick'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -223,6 +235,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   AddCodeRoute: typeof AddCodeRoute
   CCodeRoute: typeof CCodeRoute
+  ApiPublicHooksWakeTickRoute: typeof ApiPublicHooksWakeTickRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -339,6 +352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChannelsSlugRouteImport
       parentRoute: typeof AuthenticatedChannelsRoute
     }
+    '/api/public/hooks/wake-tick': {
+      id: '/api/public/hooks/wake-tick'
+      path: '/api/public/hooks/wake-tick'
+      fullPath: '/api/public/hooks/wake-tick'
+      preLoaderRoute: typeof ApiPublicHooksWakeTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -389,6 +409,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   AddCodeRoute: AddCodeRoute,
   CCodeRoute: CCodeRoute,
+  ApiPublicHooksWakeTickRoute: ApiPublicHooksWakeTickRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
