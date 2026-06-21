@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { MobileShell } from "@/components/mobile-shell";
 import { SendMessageSheet } from "@/components/send-message-sheet";
+import { PushBanner } from "@/components/push-banner";
 import { getMyOverview, updateAlarm, getWakeQueue } from "@/lib/messages.functions";
 import { getCircle } from "@/lib/friends.functions";
 import { cn, humanCountdown, nextTriggerAt } from "@/lib/utils";
@@ -106,8 +107,10 @@ function HomePage() {
           )}
         </div>
 
+        <PushBanner />
+
         {/* Alarm card */}
-        <div className="mt-10 p-5 rounded-3xl bg-card border border-border">
+        <div className="mt-6 p-5 rounded-3xl bg-card border border-border">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground">Próxima alarma</div>

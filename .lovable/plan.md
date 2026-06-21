@@ -1,83 +1,93 @@
-## Canales creados por usuarios (Growth Loop)
+# Por qué la alarma no suena hoy
 
-Cada usuario podrá crear su propio canal, invitar a su gente con un enlace/código corto, enviar despertares personales a todos sus suscriptores, y descubrir canales de otros. El esquema ya soporta `created_by` e `is_official` en `channels`, así que la base está lista — falta abrir el flujo de creación, invitación y descubrimiento.
+El despertador actual sólo dispara desde `src/routes/_authenticated/home.tsx`:
 
-### 1. Modelo de datos (migración)
+```ts
+const i = setInterval(() => {
+  if (Date.now() >= target.getTime()) navigate({ to: "/wake" });
+}, 1000);
+```
 
-Cambios a `channels`:
-- `invite_code text unique` — código corto (8 chars tipo wake_code) para `/c/<code>` o `/channels/join/<code>`.
-- `visibility text not null default 'unlisted'` con check `in ('public','unlisted','private')`:
-  - **public**: aparece en el directorio público a todos.
-  - **unlisted**: sólo accesible con el enlace de invitación (por defecto en canales de usuario).
-  - **private**: sólo accesible con invitación y previa aprobación del creador (futuro; v1 lo tratamos como unlisted con join manual).
-- `max_members int default 500` — tope blando para evitar abusos en v1.
-- `is_official` queda como hoy (canales semilla curados por el equipo).
+Eso significa que **sólo suena si la app está abierta, en primer plano y la pestaña activa**. Con el móvil bloqueado, el navegador suspende los timers, no navega a `/wake` y `wakeAudio.playRingLoop()` nunca arranca. Además, aunque navegara, los navegadores **bloquean autoplay** sin un gesto reciente del usuario, así que el audio fallaría.
 
-Función + trigger:
-- `generate_channel_invite_code()` análogo a `generate_wake_code()`.
-- Trigger `before insert on channels` que rellena `invite_code` si está nulo y normaliza `slug` (lowercase, sin espacios) cuando lo crea un usuario.
+Para que funcione con el teléfono bloqueado necesitamos tres piezas que hoy no existen:
 
-Políticas RLS nuevas:
-- `channels_insert_own`: `auth.uid() is not null` y `with check (created_by = auth.uid() and is_official = false)` — los usuarios sólo pueden crear canales no oficiales a su nombre.
-- `channels_update_own`: el creador puede editar `name, description, cover_emoji, visibility, tone_prompt, voice` de sus propios canales.
-- `channels_delete_own`: el creador puede borrar su canal (cascada ya hace el resto).
-- Ampliar `channels_public_select_official` → permitir también `visibility = 'public'` y "ver canal si conozco su `invite_code`" se resuelve vía RPC `SECURITY DEFINER` (`lookup_channel_by_invite`), no por RLS abierta.
+1. Un **scheduler en servidor** que sepa qué usuario debe despertarse a qué hora.
+2. Un canal que **despierte al sistema operativo** aunque el navegador esté cerrado → **Web Push** (FCM en Android/Chrome, APNs vía Safari 16.4+ en iOS, pero **sólo si la PWA está instalada en Home Screen**).
+3. Una **PWA instalable** con Service Worker que reciba el push, muestre notificación con sonido/vibración y abra `/wake` al tocar.
 
-Tabla `channel_subscriptions`: ya sirve. Para canales privados (futuro) añadiremos `status` (`pending|active`), no en v1.
+# Plan de acción
 
-Storage: nuevo bucket `channel-covers` (público en lectura) para portadas opcionales (`cover_url`). v1 sigue con emoji + opcional URL.
+## Fase 1 — PWA instalable de verdad (base imprescindible)
 
-### 2. Funciones de servidor (`src/lib/channels.functions.ts`)
+- Añadir `public/manifest.webmanifest` con `name`, `short_name`, `start_url: "/wake?source=push"`, `scope: "/"`, `display: "standalone"`, `theme_color`, `background_color`, iconos 192/512 (incl. `purpose: "maskable"`).
+- Enlazar manifest, `theme-color`, `apple-touch-icon` y meta `apple-mobile-web-app-capable` en `src/routes/__root.tsx`.
+- Generar iconos en `public/icons/` (reutilizando la estética luxury existente).
+- Pantalla onboarding "Añadir a la pantalla de inicio" con instrucciones específicas iOS/Android — bloqueador clave porque **iOS sólo permite Web Push si la app está instalada**.
+- Componente `InstallPrompt` que capture `beforeinstallprompt` en Android/Chrome.
 
-Añadir:
-- `createChannel({ name, description, coverEmoji, visibility, tonePrompt?, voice? })` → inserta con `created_by = userId`, autosuscribe al creador (`allow_send=true, allow_receive=true, share_wake_code=true`) en la misma transacción (dos inserts). Devuelve `{ slug, inviteCode }`.
-- `updateChannel({ channelId, patch })` — sólo creador.
-- `deleteChannel({ channelId })` — sólo creador.
-- `myChannels()` → canales `created_by = userId`.
-- `lookupChannelByInvite({ code })` (RPC `security definer` en SQL) → devuelve metadatos mínimos del canal por `invite_code` aunque el usuario no esté suscrito, para la pantalla de aceptar invitación.
-- `joinByInvite({ code })` → resuelve canal y crea suscripción.
-- `rotateInviteCode({ channelId })` — opcional, sólo creador.
-- Extender `listChannels` para devolver sólo `is_official = true` o `visibility = 'public'` o aquellos donde el usuario ya está suscrito, ordenado por: mis canales primero, luego oficiales, luego públicos por miembros desc.
+## Fase 2 — Service Worker para Web Push
 
-### 3. Rutas y UI
+- `public/sw.js` mínimo (sin caché offline para no romper el preview; sigue el skill PWA y `messaging` worker exempto de los guards de preview):
+  - `push` → `self.registration.showNotification(title, { body, icon, badge, vibrate: [400,200,400,200,800], requireInteraction: true, tag: "wake", data: { url: "/wake?messageId=..." } })`.
+  - `notificationclick` → abre/foca cliente en `data.url`.
+- Registro del SW guardado tras `primeAudio()` y sólo en producción (no en `id-preview--*`).
+- Hook `usePushSubscription()`:
+  - pide `Notification.requestPermission()` con UX explicativa (no en frío).
+  - `pushManager.subscribe({ applicationServerKey: VAPID_PUBLIC })`.
+  - envía la `PushSubscription` al backend.
 
-Nuevas rutas:
-- `src/routes/_authenticated/channels.new.tsx` — formulario de creación (nombre, descripción, emoji, visibilidad). Tras crear, redirige a `/channels/$slug` y muestra modal "Comparte tu canal" con el enlace `https://.../c/<invite_code>` + botón copiar + `navigator.share`.
-- `src/routes/c.$code.tsx` (**pública**, top-level) — landing de invitación: muestra nombre, descripción, miembros, CTA "Unirme". Si no hay sesión, redirige a `/auth?redirect=/c/<code>`. Tras login, autoejecuta `joinByInvite` y manda a `/channels/$slug`. Esto es el corazón del growth loop: link compartible que convierte visitantes en usuarios registrados y suscriptores.
-- `src/routes/_authenticated/channels.mine.tsx` — "Mis canales": lista de canales creados por mí con stats (miembros, mensajes esta semana) y acceso a editar.
+## Fase 3 — Backend: suscripciones + envío Web Push
 
-Cambios en rutas existentes:
-- `channels.tsx`: añadir botón flotante "Crear canal" + sección "Mis canales" arriba si existen.
-- `channels.$slug.tsx`: si soy el creador, mostrar panel admin (compartir enlace de invitación con copy/share, editar metadatos, ver lista de miembros, expulsar, rotar código). Mostrar siempre el enlace de invitación a cualquier suscriptor (para que cualquier miembro pueda invitar — multiplica el loop).
-- `home.tsx` / onboarding: añadir CTA "Crea tu canal y trae a tu gente" después del primer despertar enviado.
+- Migración nueva `push_subscriptions`:
+  - `id`, `user_id` FK auth.users, `endpoint` unique, `p256dh`, `auth`, `user_agent`, `created_at`, `last_seen_at`.
+  - RLS: el dueño puede leer/insertar/borrar las suyas; `service_role` ALL.
+  - `GRANT` apropiados.
+- Server function `registerPushSubscription` y `unregisterPushSubscription` (`createServerFn` + `requireSupabaseAuth`).
+- Secrets nuevos: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (`mailto:`). Se piden con `secrets--add_secret`. `VITE_VAPID_PUBLIC_KEY` para el cliente.
+- Ruta pública `src/routes/api/public/hooks/wake-tick.ts` (cron sin auth, valida `apikey` con la anon key):
+  - Lee `alarms` activas cuya hora local (según `profiles.timezone`) coincida con el minuto actual y no se hayan disparado hoy.
+  - Para cada usuario, busca un mensaje siguiente con `getWakeQueue`-style logic; arma payload `{ title, body, url: "/wake?messageId=<id>" }`.
+  - Envía Web Push a todas sus `push_subscriptions` con la lib `web-push` (compatible Workers; si no, usar implementación VAPID con `crypto.subtle` ya disponible en workerd — preferida para evitar deps Node-only).
+  - Marca `alarms.last_fired_on` (columna nueva) para idempotencia.
+- pg_cron cada minuto golpeando ese endpoint con la `apikey` anon.
 
-### 4. Growth loop (UX)
+## Fase 4 — Reproducción robusta en `/wake`
 
-Tras crear un canal:
-1. Modal "Tu canal está listo" con preview de un enlace `lovable.app/c/<code>` y tres opciones: Copiar, Compartir (WhatsApp/IG/SMS vía `navigator.share`), QR.
-2. Notificación in-app cuando alguien se une por tu enlace ("Marta se unió a tu canal Mañanas brutales").
-3. Al recibir el primer despertar desde un canal de un amigo, banner "¿Te gustó? Crea el tuyo y despierta a tu gente" → CTA a `/channels/new`.
-4. Cualquier miembro (no sólo el creador) puede reenviar la invitación → cada usuario es un nodo viral.
+- Al abrir `/wake?messageId=...` desde la notificación, mostrar pantalla "Toca para despertar" — un único tap desbloquea audio y vibración (políticas de autoplay).
+- Tras el tap: `primeAudio()` + `playRingLoop` + `vibratePattern` en bucle hasta `dismiss`.
+- Fallback texto: si TTS no está disponible (iOS bloqueo), mostrar typewriter grande + tono zen.
+- `wakeLock` API (`navigator.wakeLock.request("screen")`) para mantener pantalla encendida durante el despertar.
+- Pre-firmar audios en el payload del push (URL ya válida 10 min) para evitar dependencia de red al abrir.
+- Reintento de notificación a los 30s y 60s si el usuario no abrió (segundo push con `tag: "wake"` que reemplaza).
 
-### 5. Detalles técnicos
+## Fase 5 — Permisos y onboarding
 
-- `invite_code` se usa también como path corto `/c/<code>` para que quepa en SMS/IG.
-- `lookupChannelByInvite` y `joinByInvite` son **públicos para lectura mínima** vía SECURITY DEFINER (no exponemos `tone_prompt` ni la lista de miembros aquí) — sólo `name, description, cover_emoji, member_count`.
-- `createChannel` valida nombre 3–40, descripción ≤140, emoji ≤4 chars, slug autogenerado a partir del nombre con sufijo numérico si colisiona.
-- En el fanout existente (`fanout_channel_messages`) no hace falta tocar nada: ya distribuye `channel_messages` a `messages` para todos los suscriptores con `allow_receive=true`, respetando 1 por día.
-- IA fallback: los canales de usuario no tienen `tone_prompt` semilla por defecto; la IA sólo dispara para canales oficiales o si el creador definió un prompt. Esto evita ruido para canales pequeños sin actividad.
-- Límite anti-spam v1: máximo 3 canales creados por usuario y 1 mensaje a canal cada 30 min (validación en server fn).
+- Nuevo paso en `src/routes/onboarding.tsx`:
+  1. "Instala la app" (con detección iOS Safari → instrucciones Compartir → Añadir a inicio).
+  2. "Activa notificaciones" → `requestPermission` + `subscribe`.
+  3. "Prueba tu alarma" → botón que dispara push de prueba en 10s vía server function.
+- Banner persistente en `/home` si `Notification.permission !== "granted"` o no hay subscription.
 
-### 6. Orden de implementación
+## Fase 6 — Verificación
 
-1. Migración (campos, RLS, función `generate_channel_invite_code`, trigger, RPCs `lookup_channel_by_invite` + `join_channel_by_invite`).
-2. Server fns nuevas + extensión de `listChannels`.
-3. Ruta pública `/c/$code` + autosuscripción tras login.
-4. UI `channels.new.tsx` + modal de compartir.
-5. Panel admin en `channels.$slug.tsx` + página `channels.mine.tsx`.
-6. CTAs de growth (home + post-recepción).
+- Test E2E nuevo: registra subscription mock, llama al endpoint de tick, comprueba que `web-push` se invoca y que `last_fired_on` se actualiza.
+- Checklist manual en docs internas: Android Chrome instalado, iOS 16.4+ instalado desde Home Screen, escritorio.
 
-### Archivos afectados
+# Detalles técnicos
 
-Nuevos: migración SQL, `src/routes/_authenticated/channels.new.tsx`, `src/routes/_authenticated/channels.mine.tsx`, `src/routes/c.$code.tsx`, `src/components/share-channel-sheet.tsx`.
-Modificados: `src/lib/channels.functions.ts`, `src/routes/_authenticated/channels.tsx`, `src/routes/_authenticated/channels.$slug.tsx`, `src/routes/_authenticated/home.tsx`, `src/components/mobile-shell.tsx` (link a "Mis canales" desde el header de Canales).
+- **iOS**: Web Push sólo funciona desde Safari ≥16.4 **y con la PWA instalada**. Es ineludible; sin instalación, no hay alarma con pantalla bloqueada. Comunicarlo claramente en UI.
+- **Android**: funciona en Chrome sin instalar, pero instalar mejora fiabilidad y permite icono.
+- **Service Worker en preview Lovable**: el SW de push (`firebase-messaging-sw.js`-style) está exento de los guards del skill PWA. Aun así, registrarlo sólo si `location.hostname` no empieza por `id-preview--`/`preview--` y no es iframe, para evitar caches accidentales.
+- **Worker runtime (Cloudflare)**: la librería `web-push` usa `crypto` Node — compatible con `nodejs_compat`. Si falla, implementar VAPID JWT con `crypto.subtle` (ES256) — ~40 líneas.
+- **Timezones**: usar `profiles.timezone` (ya existe) en el tick para comparar contra hora local del usuario.
+- **Idempotencia**: añadir `alarms.last_fired_on date` con índice; el tick salta si `last_fired_on = today_local`.
+- **Sonido de notificación**: en Android el `sound` del manifest está deprecado; usamos `vibrate` + apertura de `/wake` que reproduce el ringtone real.
+- **Limpieza**: cuando un endpoint Web Push devuelve 404/410, borrar la subscription.
+- **No tocar** archivos auto-generados (`client.ts`, `types.ts`, `routeTree.gen.ts`, `.env` Supabase).
+
+# Lo que necesito de ti antes de implementar
+
+1. ¿Generamos las claves VAPID nosotros (te pediré guardarlas como secret) o ya tienes?
+2. ¿Confirmas que el público objetivo principal es iOS? Si sí, priorizo la UX de instalación + el aviso "necesitas instalar la app para que la alarma funcione bloqueada".
+3. ¿OK con añadir la dependencia `web-push` (o prefieres implementación VAPID manual sin deps)?

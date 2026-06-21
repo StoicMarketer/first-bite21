@@ -72,11 +72,14 @@ function WakePage() {
 
   const isBirthday = !!queueData?.isBirthday;
 
+  // If we arrived from a push notification, browsers block autoplay until the user taps.
+  // Start in "ringing" and require a tap (swipe) before any audio plays.
   const [phase, setPhase] = useState<"ringing" | "playing" | "reacting" | "done">("ringing");
   const [idx, setIdx] = useState(0);
   const [now, setNow] = useState(new Date());
   const cancelledRef = useRef(false);
   const stopLoopRef = useRef(false);
+  const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -88,13 +91,16 @@ function WakePage() {
       cancelledRef.current = true;
       stopLoopRef.current = true;
       wakeAudio.stopAll();
+      if (wakeLockRef.current) { void wakeLockRef.current.release(); wakeLockRef.current = null; }
     };
   }, []);
 
+  // While ringing we cannot start audio without a gesture. We can still vibrate on some browsers.
   useEffect(() => {
     if (phase !== "ringing") return;
-    wakeAudio.playRingLoop();
-    return () => wakeAudio.stopRing();
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try { (navigator as Navigator).vibrate?.([400, 200, 400, 200, 800]); } catch { /* noop */ }
+    }
   }, [phase]);
 
   // Loop playback until the user stops the alarm.
@@ -160,6 +166,16 @@ function WakePage() {
   async function dismiss() {
     wakeAudio.stopRing();
     await primeAudio();
+    // Keep the screen awake while the alarm message plays.
+    try {
+      if ("wakeLock" in navigator) {
+        const wl = await (navigator as Navigator & { wakeLock?: { request: (t: string) => Promise<{ release: () => Promise<void> }> } }).wakeLock?.request("screen");
+        if (wl) wakeLockRef.current = wl;
+      }
+    } catch { /* noop */ }
+    // Now that we have a gesture, start the actual alarm ringtone before playing the message.
+    wakeAudio.playRingLoop();
+    window.setTimeout(() => wakeAudio.stopRing(), 1500);
     setPhase("playing");
     void playLoop();
   }

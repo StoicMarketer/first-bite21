@@ -68,6 +68,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "SurpriseWake — Despierta con tu círculo" },
       { name: "description", content: "Sustituye tu alarma por mensajes sorpresa de las personas que te importan." },
       { name: "theme-color", content: "#f4efe6" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
+      { name: "apple-mobile-web-app-title", content: "SurpriseWake" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "application-name", content: "SurpriseWake" },
       { property: "og:title", content: "SurpriseWake — Despierta con tu círculo" },
       { property: "og:description", content: "Sustituye tu alarma por mensajes sorpresa de las personas que te importan." },
       { property: "og:type", content: "website" },
@@ -77,7 +82,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7fdd95ad-e32e-4e4c-8f41-54b04f98e2cc/id-preview-5795ba68--537aaa78-c643-464a-a85b-202a9d8208f0.lovable.app-1781972296581.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7fdd95ad-e32e-4e4c-8f41-54b04f98e2cc/id-preview-5795ba68--537aaa78-c643-464a-a85b-202a9d8208f0.lovable.app-1781972296581.png" },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "icon", href: "/icons/icon-512.png", type: "image/png" },
+      { rel: "apple-touch-icon", href: "/icons/icon-512.png" },
+    ],
     scripts: [{ children: themeInitScript }],
   }),
   shellComponent: RootShell,
@@ -112,6 +122,31 @@ function RootComponent() {
     });
     return () => sub.subscription.unsubscribe();
   }, [router, queryClient]);
+
+  // Service worker: register early so push subscription is possible later.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const h = window.location.hostname;
+    const isPreview =
+      h.startsWith("id-preview--") ||
+      h.startsWith("preview--") ||
+      h.endsWith(".lovableproject.com") ||
+      h.endsWith(".lovableproject-dev.com") ||
+      window.self !== window.top;
+    if (isPreview && !window.location.search.includes("sw=on")) return;
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((err) => {
+      console.warn("[sw] register failed", err);
+    });
+    const onMsg = (ev: MessageEvent) => {
+      const data = ev.data as { type?: string; url?: string } | null;
+      if (data?.type === "wake-navigate" && data.url) {
+        window.location.assign(data.url);
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", onMsg);
+    return () => navigator.serviceWorker.removeEventListener("message", onMsg);
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
