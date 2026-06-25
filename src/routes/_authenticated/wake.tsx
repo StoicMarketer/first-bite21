@@ -72,13 +72,13 @@ function WakePage() {
 
   const isBirthday = !!queueData?.isBirthday;
 
-  // If we arrived from a push notification, browsers block autoplay until the user taps.
-  // Start in "ringing" and require a tap (swipe) before any audio plays.
+  // Try to autoplay as soon as the wake screen mounts; fall back to swipe if the browser blocks it.
   const [phase, setPhase] = useState<"ringing" | "playing" | "reacting" | "done">("ringing");
   const [idx, setIdx] = useState(0);
   const [now, setNow] = useState(new Date());
   const cancelledRef = useRef(false);
   const stopLoopRef = useRef(false);
+  const autoTriedRef = useRef(false);
   const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
 
   useEffect(() => {
@@ -163,22 +163,44 @@ function WakePage() {
     }
   }, [queue, isBirthday, markFn]);
 
-  async function dismiss() {
+  const startWake = useCallback(async () => {
     wakeAudio.stopRing();
-    await primeAudio();
-    // Keep the screen awake while the alarm message plays.
+    try { await primeAudio(); } catch { /* noop */ }
     try {
       if ("wakeLock" in navigator) {
         const wl = await (navigator as Navigator & { wakeLock?: { request: (t: string) => Promise<{ release: () => Promise<void> }> } }).wakeLock?.request("screen");
         if (wl) wakeLockRef.current = wl;
       }
     } catch { /* noop */ }
-    // Now that we have a gesture, start the actual alarm ringtone before playing the message.
     wakeAudio.playRingLoop();
     window.setTimeout(() => wakeAudio.stopRing(), 1500);
     setPhase("playing");
     void playLoop();
+  }, [playLoop]);
+
+  async function dismiss() {
+    await startWake();
   }
+
+  // Auto-start playback as soon as queue is ready. Notification-click usually counts
+  // as a user gesture and lets us bypass autoplay restrictions. If it fails, we stay
+  // in "ringing" so the user can swipe to start.
+  useEffect(() => {
+    if (autoTriedRef.current) return;
+    if (phase !== "ringing") return;
+    if (isLoading) return;
+    if (queue.length === 0 && !noHuman) return; // wait for queue or AI fallback decision
+    if (noHuman && !aiMsg) return; // wait for AI fallback to load
+    autoTriedRef.current = true;
+    (async () => {
+      try {
+        const ok = await primeAudio();
+        if (!ok) return; // browser blocked autoplay — leave swipe fallback
+        await startWake();
+      } catch { /* leave swipe fallback */ }
+    })();
+  }, [phase, isLoading, queue.length, noHuman, aiMsg, startWake]);
+
 
   function stopAlarmAndReact() {
     stopLoopRef.current = true;
