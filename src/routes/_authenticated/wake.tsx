@@ -72,13 +72,13 @@ function WakePage() {
 
   const isBirthday = !!queueData?.isBirthday;
 
-  // If we arrived from a push notification, browsers block autoplay until the user taps.
-  // Start in "ringing" and require a tap (swipe) before any audio plays.
+  // Try to autoplay as soon as the wake screen mounts; fall back to swipe if the browser blocks it.
   const [phase, setPhase] = useState<"ringing" | "playing" | "reacting" | "done">("ringing");
   const [idx, setIdx] = useState(0);
   const [now, setNow] = useState(new Date());
   const cancelledRef = useRef(false);
   const stopLoopRef = useRef(false);
+  const autoTriedRef = useRef(false);
   const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
 
   useEffect(() => {
