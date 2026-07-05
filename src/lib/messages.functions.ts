@@ -18,26 +18,36 @@ export const sendMessage = createServerFn({ method: "POST" })
     if (data.kind === "text" && !data.text) throw new Error("Falta el texto");
     if (data.kind === "audio" && !data.audioPath) throw new Error("Falta el audio");
 
-    // Compute the receiver's next alarm date (scheduled_for) using the earliest active alarm
+    // Compute the receiver's next alarm date (scheduled_for) using the earliest active alarm,
+    // respecting the alarm's days_of_week (0=Sunday..6=Saturday).
     const { data: alarms } = await supabase
       .from("alarms")
-      .select("alarm_time, is_active")
+      .select("alarm_time, is_active, days_of_week")
       .eq("user_id", data.receiverId)
       .eq("is_active", true);
 
     const today = new Date();
     const scheduled = new Date(today);
-    const activeTimes = (alarms ?? []).map((a) => a.alarm_time).filter(Boolean) as string[];
-    if (activeTimes.length > 0) {
-      const candidates = activeTimes.map((t) => {
-        const [h, m] = t.split(":").map(Number);
-        const c = new Date(today);
-        c.setHours(h, m, 0, 0);
-        if (c.getTime() <= today.getTime()) c.setDate(c.getDate() + 1);
-        return c;
-      });
-      candidates.sort((a, b) => a.getTime() - b.getTime());
-      scheduled.setTime(candidates[0].getTime());
+    const activeAlarms = (alarms ?? []).filter((a) => a.alarm_time) as Array<{ alarm_time: string; days_of_week: number[] | null }>;
+    if (activeAlarms.length > 0) {
+      const candidates: Date[] = [];
+      for (const a of activeAlarms) {
+        const [h, m] = a.alarm_time.split(":").map(Number);
+        const dows = (a.days_of_week && a.days_of_week.length > 0) ? a.days_of_week : [0,1,2,3,4,5,6];
+        for (let offset = 0; offset < 8; offset++) {
+          const c = new Date(today);
+          c.setDate(c.getDate() + offset);
+          c.setHours(h, m, 0, 0);
+          if (c.getTime() <= today.getTime()) continue;
+          if (dows.includes(c.getDay())) { candidates.push(c); break; }
+        }
+      }
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => a.getTime() - b.getTime());
+        scheduled.setTime(candidates[0].getTime());
+      } else {
+        scheduled.setDate(scheduled.getDate() + 1);
+      }
     } else {
       scheduled.setDate(scheduled.getDate() + 1);
     }
