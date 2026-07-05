@@ -6,12 +6,30 @@ import { Share2, Plus, AlarmClockCheck, Sparkles, Trash2, ChevronDown } from "lu
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { MobileShell } from "@/components/mobile-shell";
 import { SendMessageSheet } from "@/components/send-message-sheet";
 import { PushBanner } from "@/components/push-banner";
 import { getMyOverview, updateAlarm, createAlarm, deleteAlarm, getWakeQueue } from "@/lib/messages.functions";
 import { getCircle } from "@/lib/friends.functions";
-import { cn, humanCountdown, nextTriggerAt } from "@/lib/utils";
+import { cn, humanCountdown, nextTriggerForAlarm } from "@/lib/utils";
+
+// Spanish weekday labels. Index 0 = Sunday to match JS Date#getDay().
+const DAY_LABELS = ["D", "L", "M", "X", "J", "V", "S"];
+const DAY_FULL = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+
+function formatDays(days: number[] | null | undefined): string {
+  const d = (days && days.length > 0) ? [...days].sort((a, b) => a - b) : ALL_DAYS;
+  if (d.length === 7) return "Todos los días";
+  const weekdays = [1, 2, 3, 4, 5];
+  const weekend = [0, 6];
+  if (d.length === 5 && weekdays.every((x) => d.includes(x))) return "Lunes a viernes";
+  if (d.length === 2 && weekend.every((x) => d.includes(x))) return "Fines de semana";
+  // Show in week order starting Monday
+  const ordered = [1, 2, 3, 4, 5, 6, 0].filter((x) => d.includes(x));
+  return ordered.map((x) => DAY_LABELS[x]).join(" · ");
+}
 
 export const Route = createFileRoute("/_authenticated/home")({
   component: HomePage,
