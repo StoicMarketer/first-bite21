@@ -1,8 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { getAchievements } from "@/lib/gamification.functions";
+import { Sparkles } from "lucide-react";
+import { getAchievements, triggerAchievementPreview } from "@/lib/gamification.functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const RARITY_STYLES: Record<string, string> = {
   common: "border-border bg-card",
