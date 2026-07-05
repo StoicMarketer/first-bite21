@@ -1,0 +1,1 @@
+ALTER TABLE public.alarms ADD COLUMN IF NOT EXISTS days_of_week smallint[] NOT NULL DEFAULT ARRAY[0,1,2,3,4,5,6]::smallint[];
