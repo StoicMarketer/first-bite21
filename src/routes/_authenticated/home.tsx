@@ -407,7 +407,20 @@ function HomePage() {
               <span className="font-display text-4xl">:</span>
               <TimeColumn value={draftMinute} max={59} onChange={setDraftMinute} />
             </div>
-            <div className="mt-8 flex gap-3">
+            <div className="mt-6">
+              <div className="text-[10px] tracking-[0.3em] uppercase text-muted-foreground mb-2 text-center">Repetir</div>
+              <DayPicker value={draftDays} onChange={setDraftDays} />
+            </div>
+            <div className="mt-5">
+              <div className="text-[10px] tracking-[0.3em] uppercase text-muted-foreground mb-2">Nota</div>
+              <Input
+                value={draftLabel}
+                onChange={(e) => setDraftLabel(e.target.value.slice(0, 40))}
+                placeholder="Ej: Trabajo, gimnasio…"
+                className="rounded-full h-10"
+              />
+            </div>
+            <div className="mt-6 flex gap-3">
               <Button variant="ghost" className="flex-1 rounded-full" onClick={() => setCreateOpen(false)}>
                 Cancelar
               </Button>
