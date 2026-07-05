@@ -12,6 +12,9 @@ import { ProfileHeader } from "@/components/profile-header";
 import { SettingsSheet } from "@/components/settings-sheet";
 import { LevelBar } from "@/components/level-bar";
 import { AchievementsGrid } from "@/components/achievements-grid";
+import { WeeklyChallengesCard } from "@/components/weekly-challenges-card";
+import { CircleLeaderboard } from "@/components/circle-leaderboard";
+
 
 
 export const Route = createFileRoute("/_authenticated/circle")({
