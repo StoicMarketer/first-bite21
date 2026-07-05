@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
-import { Share2, Plus, AlarmClockCheck, Sparkles, Trash2, ChevronDown, Star } from "lucide-react";
+import { Share2, Plus, AlarmClockCheck, Trash2, ChevronDown, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
