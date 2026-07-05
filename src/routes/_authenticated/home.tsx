@@ -320,7 +320,7 @@ function HomePage() {
 
       {createOpen && (
         <div
-          className="fixed inset-0 z-50 bg-background/70 backdrop-blur-md flex items-end sm:items-center justify-center p-6 animate-in fade-in-0"
+          className="fixed inset-0 z-50 bg-background/70 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in-0"
           onClick={() => setCreateOpen(false)}
         >
           <div
