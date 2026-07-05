@@ -11,6 +11,8 @@ import { AddByHandle } from "@/components/add-by-handle";
 import { ProfileHeader } from "@/components/profile-header";
 import { SettingsSheet } from "@/components/settings-sheet";
 import { LevelBar } from "@/components/level-bar";
+import { AchievementsGrid } from "@/components/achievements-grid";
+
 
 export const Route = createFileRoute("/_authenticated/circle")({
   component: CirclePage,
