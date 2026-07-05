@@ -234,24 +234,34 @@ function HomePage() {
           {alarms.map((a) => {
             const [h, m] = a.alarm_time.split(":").map(Number);
             const expanded = expandedId === a.id;
+            const dayText = formatDays(a.days_of_week);
+            const subText = a.label ? `${dayText} · ${a.label}` : dayText;
             return (
               <div key={a.id} className="rounded-3xl bg-card border border-border overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-4">
                   <button
                     onClick={() => setExpandedId(expanded ? null : a.id)}
-                    className="flex items-center gap-3 flex-1 text-left"
+                    className="flex items-center gap-3 flex-1 text-left min-w-0"
                   >
-                    <span
-                      className={cn(
-                        "font-display text-4xl tabular",
-                        !a.is_active && "text-muted-foreground/60"
-                      )}
-                    >
-                      {a.alarm_time}
-                    </span>
+                    <div className="min-w-0">
+                      <div
+                        className={cn(
+                          "font-display text-4xl tabular leading-none",
+                          !a.is_active && "text-muted-foreground/60"
+                        )}
+                      >
+                        {a.alarm_time}
+                      </div>
+                      <div className={cn(
+                        "text-[11px] mt-1.5 truncate",
+                        a.is_active ? "text-muted-foreground" : "text-muted-foreground/50"
+                      )}>
+                        {subText}
+                      </div>
+                    </div>
                     <ChevronDown
                       className={cn(
-                        "h-4 w-4 text-muted-foreground transition-transform",
+                        "h-4 w-4 text-muted-foreground transition-transform shrink-0",
                         expanded && "rotate-180"
                       )}
                       strokeWidth={1.5}
@@ -265,7 +275,7 @@ function HomePage() {
                   />
                 </div>
                 {expanded && (
-                  <div className="border-t border-border px-5 py-4 space-y-4">
+                  <div className="border-t border-border px-5 py-4 space-y-5">
                     <div className="flex items-center justify-center gap-2">
                       <TimeColumn
                         value={h}
@@ -291,6 +301,30 @@ function HomePage() {
                         }
                       />
                     </div>
+                    <div>
+                      <div className="text-[10px] tracking-[0.3em] uppercase text-muted-foreground mb-2 text-center">Repetir</div>
+                      <DayPicker
+                        value={a.days_of_week ?? ALL_DAYS}
+                        onChange={(days) => updateMut.mutate({
+                          id: a.id,
+                          alarmTime: a.alarm_time,
+                          isActive: a.is_active,
+                          daysOfWeek: days,
+                        })}
+                      />
+                    </div>
+                    <div>
+                      <div className="text-[10px] tracking-[0.3em] uppercase text-muted-foreground mb-2">Nota</div>
+                      <LabelInput
+                        initial={a.label ?? ""}
+                        onSave={(label) => updateMut.mutate({
+                          id: a.id,
+                          alarmTime: a.alarm_time,
+                          isActive: a.is_active,
+                          label: label || null,
+                        })}
+                      />
+                    </div>
                     <button
                       onClick={() => {
                         deleteMut.mutate(a.id);
@@ -307,6 +341,7 @@ function HomePage() {
             );
           })}
         </div>
+
 
         {/* Circle */}
         <div className="mt-10">
