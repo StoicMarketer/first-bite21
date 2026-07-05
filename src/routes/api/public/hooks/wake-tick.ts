@@ -24,7 +24,7 @@ export const Route = createFileRoute("/api/public/hooks/wake-tick")({
 
         const { data: alarms, error } = await supabaseAdmin
           .from("alarms")
-          .select("id, user_id, alarm_time, is_active, last_fired_on, profiles!inner(timezone)")
+          .select("id, user_id, alarm_time, is_active, last_fired_on, days_of_week, profiles!inner(timezone)")
           .eq("is_active", true);
         if (error) {
           return new Response(JSON.stringify({ error: error.message }), { status: 500 });
@@ -35,8 +35,8 @@ export const Route = createFileRoute("/api/public/hooks/wake-tick")({
 
         for (const a of alarms ?? []) {
           const tz = (a as unknown as { profiles?: { timezone?: string } }).profiles?.timezone || "UTC";
-          // Hour/minute in user's tz, plus today's date.
-          let hh = "00", mm = "00", today = "";
+          // Hour/minute/weekday in user's tz, plus today's date.
+          let hh = "00", mm = "00", today = "", dow = 0;
           try {
             const parts = new Intl.DateTimeFormat("en-GB", {
               timeZone: tz, hour12: false, hour: "2-digit", minute: "2-digit",
@@ -44,6 +44,8 @@ export const Route = createFileRoute("/api/public/hooks/wake-tick")({
             hh = parts.find((p) => p.type === "hour")?.value ?? "00";
             mm = parts.find((p) => p.type === "minute")?.value ?? "00";
             today = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(now); // YYYY-MM-DD
+            const wk = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(now);
+            dow = ({ Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6 } as Record<string, number>)[wk] ?? 0;
           } catch {
             continue;
           }
@@ -51,6 +53,8 @@ export const Route = createFileRoute("/api/public/hooks/wake-tick")({
           const target = (a.alarm_time || "00:00").slice(0, 5);
           if (`${hh}:${mm}` !== target) continue;
           if (a.last_fired_on === today) continue;
+          const days = (a.days_of_week && a.days_of_week.length > 0) ? a.days_of_week : [0,1,2,3,4,5,6];
+          if (!days.includes(dow)) continue;
 
           // Pick the next unplayed message (lock to today like getWakeQueue does).
           const { data: pending } = await supabaseAdmin
