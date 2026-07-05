@@ -36,10 +36,12 @@ export function SendMessageSheet({ friend, onClose }: { friend: Friend | null; o
   const sendText = useMutation({
     mutationFn: (payload: { receiverId: string; text: string }) =>
       sendFn({ data: { receiverId: payload.receiverId, kind: "text" as const, text: payload.text } }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       toast.success("Mensaje enviado — llegará al amanecer.");
+      if (res?.progress?.levelUp) toast.success(`¡Subiste a nivel ${res.progress.newLevel}! ☀`);
       setText("");
       qc.invalidateQueries({ queryKey: ["inbox"] });
+      qc.invalidateQueries({ queryKey: ["progress"] });
       onClose();
     },
     onError: (e: Error) => toast.error(e.message),
