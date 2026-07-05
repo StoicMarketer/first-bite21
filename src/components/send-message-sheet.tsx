@@ -161,9 +161,13 @@ export function SendMessageSheet({ friend, onClose }: { friend: Friend | null; o
       if (res?.progress?.levelUp) toast.success(`¡Subiste a nivel ${res.progress.newLevel}! ☀`);
       qc.invalidateQueries({ queryKey: ["inbox"] });
       qc.invalidateQueries({ queryKey: ["progress"] });
+      try { await checkFn(); } catch { /* silencioso */ }
+      qc.invalidateQueries({ queryKey: ["unseen-achievements"] });
+      qc.invalidateQueries({ queryKey: ["achievements"] });
       resetAll();
       onClose();
     } catch (e) {
+
       const m = e instanceof Error ? e.message : "Error al enviar";
       toast.error(m);
     } finally {
