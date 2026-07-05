@@ -23,14 +23,29 @@ function SettingsPage() {
   const navigate = useNavigate();
   const overviewFn = useServerFn(getMyOverview);
   const updateProfileFn = useServerFn(updateProfile);
+  const updateUsernameFn = useServerFn(updateUsername);
   const qc = useQueryClient();
   const [theme, setTheme] = useTheme();
   const { data } = useQuery({ queryKey: ["overview"], queryFn: () => overviewFn() });
+  const currentUsername = data?.profile?.username ?? "";
+  const [usernameDraft, setUsernameDraft] = useState(currentUsername);
+  useEffect(() => { setUsernameDraft(currentUsername); }, [currentUsername]);
 
   const updateMut = useMutation({
     mutationFn: (p: { birthdate?: string | null; birthdayUnlimited?: boolean }) => updateProfileFn({ data: p }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["overview"] }); toast.success("Guardado"); },
   });
+
+  const usernameMut = useMutation({
+    mutationFn: (username: string) => updateUsernameFn({ data: { username } }),
+    onSuccess: (r) => {
+      toast.success(`Ahora eres @${r.username}`);
+      qc.invalidateQueries({ queryKey: ["overview"] });
+      qc.invalidateQueries({ queryKey: ["my-profile"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
 
   const signOut = useMutation({
     mutationFn: async () => {
