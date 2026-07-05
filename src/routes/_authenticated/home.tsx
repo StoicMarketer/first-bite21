@@ -121,9 +121,6 @@ function HomePage() {
   const [draftDays, setDraftDays] = useState<number[]>(ALL_DAYS);
   const [draftLabel, setDraftLabel] = useState("");
 
-  function toggleDraftDay(d: number) {
-    setDraftDays((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]);
-  }
 
   function openCreate() {
     let hh = 7, mm = 0;
