@@ -1,8 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { getAchievements } from "@/lib/gamification.functions";
+import { Sparkles } from "lucide-react";
+import { getAchievements, triggerAchievementPreview } from "@/lib/gamification.functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const RARITY_STYLES: Record<string, string> = {
   common: "border-border bg-card",
@@ -32,8 +34,24 @@ type Item = {
 
 export function AchievementsGrid() {
   const fn = useServerFn(getAchievements);
+  const previewFn = useServerFn(triggerAchievementPreview);
+  const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["achievements"], queryFn: () => fn() });
   const [selected, setSelected] = useState<Item | null>(null);
+  const [triggering, setTriggering] = useState(false);
+
+  async function handlePreview() {
+    if (!selected) return;
+    setTriggering(true);
+    try {
+      await previewFn({ data: { code: selected.code } });
+      setSelected(null);
+      qc.invalidateQueries({ queryKey: ["unseen-achievements"] });
+      qc.invalidateQueries({ queryKey: ["achievements"] });
+    } finally {
+      setTriggering(false);
+    }
+  }
 
   const items = data ?? [];
   const unlockedCount = items.filter((i) => i.unlocked).length;
@@ -97,6 +115,15 @@ export function AchievementsGrid() {
                 </span>
                 <span className="tabular">+{selected.solesReward} ☀</span>
               </div>
+              <Button
+                onClick={handlePreview}
+                disabled={triggering}
+                className="w-full mt-3 rounded-full gap-2"
+                variant="outline"
+              >
+                <Sparkles className="h-4 w-4" strokeWidth={1.8} />
+                {selected.unlocked ? "Volver a ver la animación" : "Desbloquear y ver animación"}
+              </Button>
             </>
           )}
         </DialogContent>

@@ -169,6 +169,24 @@ export const markAchievementSeen = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// Dev/preview helper: force-unlock (or re-trigger) an achievement so the
+// unlock animation can be replayed on demand. Inserts if missing, and always
+// marks it unseen so <AchievementUnlockedModal /> picks it up on next poll.
+export const triggerAchievementPreview = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ code: z.string() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { error } = await supabase
+      .from("user_achievements")
+      .upsert(
+        { user_id: userId, achievement_code: data.code, seen: false, unlocked_at: new Date().toISOString() },
+        { onConflict: "user_id,achievement_code" }
+      );
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 // ============ Weekly challenges ============
 const CHALLENGE_META: Record<string, { title: string; icon: string }> = {
   send_5_people: { title: "Envía amaneceres a 5 personas", icon: "✉️" },
