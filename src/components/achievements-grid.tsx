@@ -34,8 +34,24 @@ type Item = {
 
 export function AchievementsGrid() {
   const fn = useServerFn(getAchievements);
+  const previewFn = useServerFn(triggerAchievementPreview);
+  const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["achievements"], queryFn: () => fn() });
   const [selected, setSelected] = useState<Item | null>(null);
+  const [triggering, setTriggering] = useState(false);
+
+  async function handlePreview() {
+    if (!selected) return;
+    setTriggering(true);
+    try {
+      await previewFn({ data: { code: selected.code } });
+      setSelected(null);
+      qc.invalidateQueries({ queryKey: ["unseen-achievements"] });
+      qc.invalidateQueries({ queryKey: ["achievements"] });
+    } finally {
+      setTriggering(false);
+    }
+  }
 
   const items = data ?? [];
   const unlockedCount = items.filter((i) => i.unlocked).length;
