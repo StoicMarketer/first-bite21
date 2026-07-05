@@ -51,14 +51,22 @@ export const getMyProgress = createServerFn({ method: "GET" })
 export const registerWakeOpen = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
     const { data, error } = await supabase.rpc("apply_wake_event");
     if (error) throw new Error(error.message);
     const row = Array.isArray(data) ? data[0] : data;
+    const levelUp = (row?.level_up as boolean) ?? false;
+    const newLevel = (row?.new_level as number) ?? 0;
+    if (levelUp) {
+      try {
+        const { notifyCircleMilestone } = await import("./milestone-notify.server");
+        await notifyCircleMilestone({ userId, kind: "level_up", level: newLevel });
+      } catch { /* noop */ }
+    }
     return {
       newTotal: (row?.new_total as number) ?? 0,
-      newLevel: (row?.new_level as number) ?? 0,
-      levelUp: (row?.level_up as boolean) ?? false,
+      newLevel,
+      levelUp,
       wakeStreak: (row?.wake_streak as number) ?? 0,
     };
   });
