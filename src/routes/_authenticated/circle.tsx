@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useRef } from "react";
-import { Check, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { Check, X, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MobileShell } from "@/components/mobile-shell";
 import { respondFriendRequest, getCircle, getPendingRequests, getMyProfile } from "@/lib/friends.functions";
 import { AddByHandle } from "@/components/add-by-handle";
 import { ProfileHeader } from "@/components/profile-header";
+import { SettingsSheet } from "@/components/settings-sheet";
 
 export const Route = createFileRoute("/_authenticated/circle")({
   component: CirclePage,
@@ -20,6 +21,7 @@ function CirclePage() {
   const pendingFn = useServerFn(getPendingRequests);
   const meFn = useServerFn(getMyProfile);
   const pendingRef = useRef<HTMLDivElement>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const { data: me } = useQuery({ queryKey: ["my-profile"], queryFn: () => meFn() });
   const { data: circle } = useQuery({ queryKey: ["circle"], queryFn: () => circleFn() });
@@ -35,7 +37,16 @@ function CirclePage() {
 
   return (
     <MobileShell>
-      <div className="px-6 pt-12 pb-8">
+      <div className="px-6 pt-6 pb-8 relative">
+        <button
+          type="button"
+          onClick={() => setSettingsOpen(true)}
+          aria-label="Ajustes"
+          className="absolute top-6 right-6 h-9 w-9 rounded-full flex items-center justify-center bg-card/80 backdrop-blur border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+        >
+          <Settings className="h-4 w-4" strokeWidth={1.5} />
+        </button>
+
 
 
         <ProfileHeader
@@ -84,6 +95,7 @@ function CirclePage() {
           )}
         </div>
       </div>
+      <SettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} />
     </MobileShell>
   );
 }

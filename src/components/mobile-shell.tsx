@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { AlarmClock, Users, Inbox, Settings, Radio } from "lucide-react";
+import { AlarmClock, Users, Inbox, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function MobileShell({ children, hideTabBar }: { children: ReactNode; hideTabBar?: boolean }) {
@@ -21,14 +21,13 @@ const TABS = [
   { to: "/circle", label: "Círculo", icon: Users },
   { to: "/channels", label: "Canales", icon: Radio },
   { to: "/inbox", label: "Recibidos", icon: Inbox },
-  { to: "/settings", label: "Ajustes", icon: Settings },
 ] as const;
 
 function TabBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
     <nav className="absolute bottom-0 left-0 right-0 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 pointer-events-none">
-      <div className="pointer-events-auto bg-card/85 backdrop-blur-xl border border-border rounded-full px-1 py-1.5 grid grid-cols-5 gap-0.5 shadow-[0_8px_24px_-12px_oklch(0_0_0_/_0.2)]">
+      <div className="pointer-events-auto bg-card/85 backdrop-blur-xl border border-border rounded-full px-1 py-1.5 grid grid-cols-4 gap-0.5 shadow-[0_8px_24px_-12px_oklch(0_0_0_/_0.2)]">
         {TABS.map((t) => {
           const active = pathname === t.to || (t.to === "/home" && pathname === "/");
           const Icon = t.icon;
