@@ -398,15 +398,111 @@ export type Database = {
           },
         ]
       }
+      sunbeam_events: {
+        Row: {
+          amount: number
+          created_at: string
+          id: number
+          reason: string
+          ref_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: number
+          reason: string
+          ref_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: number
+          reason?: string
+          ref_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_progress: {
+        Row: {
+          freeze_reset_month: string
+          level: number
+          send_freeze_available: boolean
+          send_streak: number
+          send_streak_last_date: string | null
+          soles: number
+          updated_at: string
+          user_id: string
+          wake_freeze_available: boolean
+          wake_streak: number
+          wake_streak_last_date: string | null
+        }
+        Insert: {
+          freeze_reset_month?: string
+          level?: number
+          send_freeze_available?: boolean
+          send_streak?: number
+          send_streak_last_date?: string | null
+          soles?: number
+          updated_at?: string
+          user_id: string
+          wake_freeze_available?: boolean
+          wake_streak?: number
+          wake_streak_last_date?: string | null
+        }
+        Update: {
+          freeze_reset_month?: string
+          level?: number
+          send_freeze_available?: boolean
+          send_streak?: number
+          send_streak_last_date?: string | null
+          soles?: number
+          updated_at?: string
+          user_id?: string
+          wake_freeze_available?: boolean
+          wake_streak?: number
+          wake_streak_last_date?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      apply_send_event: {
+        Args: { _message_id: string }
+        Returns: {
+          level_up: boolean
+          new_level: number
+          new_total: number
+          send_streak: number
+        }[]
+      }
+      apply_wake_event: {
+        Args: never
+        Returns: {
+          level_up: boolean
+          new_level: number
+          new_total: number
+          wake_streak: number
+        }[]
+      }
+      award_soles: {
+        Args: { _amount: number; _reason: string; _ref?: string }
+        Returns: {
+          level_up: boolean
+          new_level: number
+          new_total: number
+        }[]
+      }
       fanout_channel_messages: { Args: never; Returns: number }
       generate_channel_invite_code: { Args: never; Returns: string }
       generate_wake_code: { Args: never; Returns: string }
       join_channel_by_invite: { Args: { _code: string }; Returns: string }
+      level_from_soles: { Args: { _soles: number }; Returns: number }
       lookup_by_username: {
         Args: { _username: string }
         Returns: {

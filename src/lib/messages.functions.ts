@@ -67,7 +67,7 @@ export const sendMessage = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    // Bump sender streak
+    // Bump sender streak (legacy profiles.streak_count — mantenido por compatibilidad)
     const todayStr = new Date().toISOString().slice(0, 10);
     const { data: prof } = await supabase.from("profiles").select("streak_count, last_send_date").eq("id", userId).single();
     if (prof) {
@@ -78,7 +78,23 @@ export const sendMessage = createServerFn({ method: "POST" })
         await supabase.from("profiles").update({ streak_count: streak, last_send_date: todayStr }).eq("id", userId);
       }
     }
-    return { id: inserted.id, scheduledFor };
+
+    // Sistema Soles: puntos + racha nueva
+    let progress: { newTotal: number; newLevel: number; levelUp: boolean; sendStreak: number } | null = null;
+    try {
+      const { data: r } = await supabase.rpc("apply_send_event", { _message_id: inserted.id });
+      const row = Array.isArray(r) ? r[0] : r;
+      if (row) {
+        progress = {
+          newTotal: row.new_total as number,
+          newLevel: row.new_level as number,
+          levelUp: row.level_up as boolean,
+          sendStreak: row.send_streak as number,
+        };
+      }
+    } catch { /* no bloquear el envío si el ledger falla */ }
+
+    return { id: inserted.id, scheduledFor, progress };
   });
 
 // ============ Wake queue: messages due now for the current user ============

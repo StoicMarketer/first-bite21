@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
-import { Share2, Plus, AlarmClockCheck, Sparkles, Trash2, ChevronDown, Star } from "lucide-react";
+import { Share2, Plus, AlarmClockCheck, Trash2, ChevronDown, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -198,12 +198,6 @@ function HomePage() {
               {now.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}
             </div>
           </div>
-          {(overview?.profile?.streak_count ?? 0) > 0 && (
-            <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent">
-              <Sparkles className="h-3 w-3" strokeWidth={1.5} />
-              <span className="text-xs tabular">{overview!.profile!.streak_count}</span>
-            </div>
-          )}
         </div>
 
         <PushBanner />

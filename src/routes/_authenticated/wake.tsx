@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { motion, useMotionValue, useTransform } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -9,6 +9,7 @@ import { MobileShell } from "@/components/mobile-shell";
 import { Button } from "@/components/ui/button";
 import { getWakeQueue, markPlayed, saveMessage, sendReaction, updateAlarm } from "@/lib/messages.functions";
 import { getAiWakeMessage } from "@/lib/ai-wake.functions";
+import { registerWakeOpen } from "@/lib/gamification.functions";
 import { primeAudio, startRecorder } from "@/lib/audio-context";
 import { wakeAudio } from "@/lib/wake-audio";
 import { toast } from "sonner";
@@ -40,6 +41,8 @@ function WakePage() {
   const saveFn = useServerFn(saveMessage);
   const reactFn = useServerFn(sendReaction);
   const updateAlarmFn = useServerFn(updateAlarm);
+  const wakeOpenFn = useServerFn(registerWakeOpen);
+  const qcRoot = useQueryClient();
 
   const { data: queueData, isLoading } = useQuery({
     queryKey: ["wakeQueue", force, messageId],
@@ -85,6 +88,20 @@ function WakePage() {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  // Registrar apertura de /wake para el sistema de Soles (una sola vez por montaje).
+  const wakeRegisteredRef = useRef(false);
+  useEffect(() => {
+    if (wakeRegisteredRef.current) return;
+    if (!queueData) return;
+    wakeRegisteredRef.current = true;
+    wakeOpenFn()
+      .then((r) => {
+        if (r.levelUp) toast.success(`¡Subiste a nivel ${r.newLevel}! ☀`);
+        qcRoot.invalidateQueries({ queryKey: ["progress"] });
+      })
+      .catch(() => { /* silencioso */ });
+  }, [queueData, wakeOpenFn, qcRoot]);
 
   useEffect(() => {
     return () => {
