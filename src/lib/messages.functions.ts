@@ -91,6 +91,12 @@ export const sendMessage = createServerFn({ method: "POST" })
           levelUp: row.level_up as boolean,
           sendStreak: row.send_streak as number,
         };
+        if (progress.levelUp) {
+          try {
+            const { notifyCircleMilestone } = await import("./milestone-notify.server");
+            await notifyCircleMilestone({ userId, kind: "level_up", level: progress.newLevel });
+          } catch { /* noop */ }
+        }
       }
     } catch { /* no bloquear el envío si el ledger falla */ }
 
