@@ -494,6 +494,43 @@ function Avatar({ src, name, active }: { src: string | null; name: string; activ
   );
 }
 
+function FriendAvatarButton({
+  friend,
+  onSelect,
+  onToggleFavorite,
+}: {
+  friend: Friend;
+  onSelect: (f: Friend) => void;
+  onToggleFavorite: (fav: boolean) => void;
+}) {
+  const isFav = !!friend.is_favorite;
+  return (
+    <div className="flex-shrink-0 flex flex-col items-center gap-2 w-20">
+      <div className="relative">
+        <button
+          onClick={() => onSelect(friend)}
+          className="block active:scale-95 transition-transform"
+          aria-label={`Enviar amanecer a ${friend.display_name || friend.username}`}
+        >
+          <Avatar src={friend.avatar_url} name={friend.display_name || friend.username} active={friend.alarm_active} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleFavorite(!isFav); }}
+          aria-pressed={isFav}
+          aria-label={isFav ? "Quitar de favoritos" : "Añadir a favoritos"}
+          className={cn(
+            "absolute -bottom-0.5 -right-0.5 h-6 w-6 rounded-full border-2 border-background flex items-center justify-center transition-colors",
+            isFav ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Star className={cn("h-3 w-3", isFav && "fill-current")} strokeWidth={1.5} />
+        </button>
+      </div>
+      <span className="text-xs truncate w-full text-center">{friend.display_name || friend.username}</span>
+    </div>
+  );
+}
+
 function DayPicker({ value, onChange }: { value: number[]; onChange: (days: number[]) => void }) {
   // Render in week order starting Monday: L M X J V S D
   const order = [1, 2, 3, 4, 5, 6, 0];
