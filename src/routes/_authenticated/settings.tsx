@@ -9,8 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyOverview, updateProfile } from "@/lib/messages.functions";
+import { updateUsername } from "@/lib/friends.functions";
 import { primeAudio } from "@/lib/audio-context";
 import { useTheme } from "@/lib/theme";
+import { useEffect, useState } from "react";
+
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
