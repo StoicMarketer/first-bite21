@@ -446,6 +446,54 @@ function Avatar({ src, name, active }: { src: string | null; name: string; activ
   );
 }
 
+function DayPicker({ value, onChange }: { value: number[]; onChange: (days: number[]) => void }) {
+  // Render in week order starting Monday: L M X J V S D
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  function toggle(d: number) {
+    const has = value.includes(d);
+    const next = has ? value.filter((x) => x !== d) : [...value, d];
+    onChange(next.sort((a, b) => a - b));
+  }
+  return (
+    <div className="flex items-center justify-between gap-1.5">
+      {order.map((d) => {
+        const active = value.includes(d);
+        return (
+          <button
+            key={d}
+            type="button"
+            aria-label={DAY_FULL[d]}
+            aria-pressed={active}
+            onClick={() => toggle(d)}
+            className={cn(
+              "h-9 w-9 rounded-full text-xs font-medium transition-colors border",
+              active
+                ? "bg-foreground text-background border-foreground"
+                : "bg-transparent text-muted-foreground border-border hover:text-foreground"
+            )}
+          >
+            {DAY_LABELS[d]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function LabelInput({ initial, onSave }: { initial: string; onSave: (label: string) => void }) {
+  const [val, setVal] = useState(initial);
+  useEffect(() => { setVal(initial); }, [initial]);
+  return (
+    <Input
+      value={val}
+      onChange={(e) => setVal(e.target.value.slice(0, 40))}
+      onBlur={() => { if (val.trim() !== initial.trim()) onSave(val.trim()); }}
+      placeholder="Ej: Trabajo, gimnasio…"
+      className="rounded-full h-10"
+    />
+  );
+}
+
 function TimeColumn({ value, max, step = 1, onChange }: { value: number; max: number; step?: number; onChange: (n: number) => void }) {
   return (
     <div className="flex flex-col items-center">
