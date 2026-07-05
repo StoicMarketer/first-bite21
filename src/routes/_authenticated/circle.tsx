@@ -36,7 +36,7 @@ function CirclePage() {
   return (
     <MobileShell>
       <div className="px-6 pt-12 pb-8">
-        <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground text-center">Tu círculo</div>
+
 
         <ProfileHeader
           username={me?.username}
