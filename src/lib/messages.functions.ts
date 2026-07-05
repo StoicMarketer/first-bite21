@@ -344,10 +344,14 @@ export const createAlarm = createServerFn({ method: "POST" })
       alarmTime: z.string().regex(/^\d{2}:\d{2}$/),
       isActive: z.boolean().optional(),
       label: z.string().trim().max(40).optional(),
+      daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
     }).parse(i)
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const dow = (data.daysOfWeek && data.daysOfWeek.length > 0)
+      ? Array.from(new Set(data.daysOfWeek)).sort((a, b) => a - b)
+      : [0, 1, 2, 3, 4, 5, 6];
     const { data: row, error } = await supabase
       .from("alarms")
       .insert({
@@ -355,6 +359,7 @@ export const createAlarm = createServerFn({ method: "POST" })
         alarm_time: data.alarmTime + ":00",
         is_active: data.isActive ?? true,
         label: data.label ?? null,
+        days_of_week: dow,
       })
       .select("*")
       .single();
@@ -370,15 +375,21 @@ export const updateAlarm = createServerFn({ method: "POST" })
       alarmTime: z.string().regex(/^\d{2}:\d{2}$/),
       isActive: z.boolean(),
       label: z.string().trim().max(40).nullish(),
+      daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
     }).parse(i)
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const payload: { alarm_time: string; is_active: boolean; label?: string | null } = {
+    const payload: { alarm_time: string; is_active: boolean; label?: string | null; days_of_week?: number[] } = {
       alarm_time: data.alarmTime + ":00",
       is_active: data.isActive,
     };
     if (data.label !== undefined) payload.label = data.label ?? null;
+    if (data.daysOfWeek !== undefined) {
+      payload.days_of_week = data.daysOfWeek.length > 0
+        ? Array.from(new Set(data.daysOfWeek)).sort((a, b) => a - b)
+        : [0, 1, 2, 3, 4, 5, 6];
+    }
 
     if (data.id) {
       const { error } = await supabase.from("alarms").update(payload).eq("id", data.id).eq("user_id", userId);
