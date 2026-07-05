@@ -317,6 +317,35 @@ function HomePage() {
       </div>
 
       <SendMessageSheet friend={selectedFriend} onClose={() => setSelectedFriend(null)} />
+
+      {createOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-background/70 backdrop-blur-md flex items-end sm:items-center justify-center p-6 animate-in fade-in-0"
+          onClick={() => setCreateOpen(false)}
+        >
+          <div
+            className="relative bg-card border border-border rounded-3xl p-6 w-full max-w-sm shadow-xl animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground text-center">
+              Nueva alarma
+            </div>
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <TimeColumn value={draftHour} max={23} onChange={setDraftHour} />
+              <span className="font-display text-4xl">:</span>
+              <TimeColumn value={draftMinute} max={59} onChange={setDraftMinute} />
+            </div>
+            <div className="mt-8 flex gap-3">
+              <Button variant="ghost" className="flex-1 rounded-full" onClick={() => setCreateOpen(false)}>
+                Cancelar
+              </Button>
+              <Button className="flex-1 rounded-full" onClick={saveNewAlarm} disabled={createMut.isPending}>
+                Guardar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </MobileShell>
   );
 }
