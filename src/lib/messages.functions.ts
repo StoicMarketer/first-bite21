@@ -18,21 +18,26 @@ export const sendMessage = createServerFn({ method: "POST" })
     if (data.kind === "text" && !data.text) throw new Error("Falta el texto");
     if (data.kind === "audio" && !data.audioPath) throw new Error("Falta el audio");
 
-    // Compute the receiver's next alarm date (scheduled_for)
-    const { data: alarm } = await supabase
+    // Compute the receiver's next alarm date (scheduled_for) using the earliest active alarm
+    const { data: alarms } = await supabase
       .from("alarms")
       .select("alarm_time, is_active")
       .eq("user_id", data.receiverId)
-      .maybeSingle();
+      .eq("is_active", true);
 
     const today = new Date();
     const scheduled = new Date(today);
-    if (alarm?.alarm_time) {
-      const [h, m] = alarm.alarm_time.split(":").map(Number);
-      const cand = new Date(today);
-      cand.setHours(h, m, 0, 0);
-      if (cand.getTime() <= today.getTime()) cand.setDate(cand.getDate() + 1);
-      scheduled.setTime(cand.getTime());
+    const activeTimes = (alarms ?? []).map((a) => a.alarm_time).filter(Boolean) as string[];
+    if (activeTimes.length > 0) {
+      const candidates = activeTimes.map((t) => {
+        const [h, m] = t.split(":").map(Number);
+        const c = new Date(today);
+        c.setHours(h, m, 0, 0);
+        if (c.getTime() <= today.getTime()) c.setDate(c.getDate() + 1);
+        return c;
+      });
+      candidates.sort((a, b) => a.getTime() - b.getTime());
+      scheduled.setTime(candidates[0].getTime());
     } else {
       scheduled.setDate(scheduled.getDate() + 1);
     }
