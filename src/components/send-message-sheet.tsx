@@ -8,6 +8,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { sendMessage } from "@/lib/messages.functions";
+import { checkAchievements } from "@/lib/gamification.functions";
+
 import { startRecorder } from "@/lib/audio-context";
 import { supabase } from "@/integrations/supabase/client";
 
