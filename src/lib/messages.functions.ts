@@ -364,11 +364,11 @@ export const updateAlarm = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const payload: Record<string, unknown> = {
+    const payload: { alarm_time: string; is_active: boolean; label?: string | null } = {
       alarm_time: data.alarmTime + ":00",
       is_active: data.isActive,
     };
-    if (data.label !== undefined) payload.label = data.label;
+    if (data.label !== undefined) payload.label = data.label ?? null;
 
     if (data.id) {
       const { error } = await supabase.from("alarms").update(payload).eq("id", data.id).eq("user_id", userId);
