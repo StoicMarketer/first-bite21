@@ -72,6 +72,22 @@ function HomePage() {
     mutationFn: (id: string) => deleteAlarmFn({ data: { id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["overview"] }),
   });
+  const favMut = useMutation({
+    mutationFn: (p: { friendId: string; favorite: boolean }) => toggleFavoriteFn({ data: p }),
+    onMutate: async (p) => {
+      await qc.cancelQueries({ queryKey: ["circle"] });
+      const prev = qc.getQueryData<Friend[]>(["circle"]);
+      if (prev) {
+        qc.setQueryData<Friend[]>(["circle"], prev.map((f) => f.id === p.friendId ? { ...f, is_favorite: p.favorite } : f));
+      }
+      return { prev };
+    },
+    onError: (_e, _p, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["circle"], ctx.prev);
+      toast.error("No se pudo actualizar el favorito");
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["circle"] }),
+  });
 
   // Live clock
   const [now, setNow] = useState(new Date());
