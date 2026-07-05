@@ -9,7 +9,7 @@ import { MobileShell } from "@/components/mobile-shell";
 import { Button } from "@/components/ui/button";
 import { getWakeQueue, markPlayed, saveMessage, sendReaction, updateAlarm } from "@/lib/messages.functions";
 import { getAiWakeMessage } from "@/lib/ai-wake.functions";
-import { registerWakeOpen } from "@/lib/gamification.functions";
+import { registerWakeOpen, checkAchievements } from "@/lib/gamification.functions";
 import { primeAudio, startRecorder } from "@/lib/audio-context";
 import { wakeAudio } from "@/lib/wake-audio";
 import { toast } from "sonner";
