@@ -115,6 +115,15 @@ export function AchievementsGrid() {
                 </span>
                 <span className="tabular">+{selected.solesReward} ☀</span>
               </div>
+              <Button
+                onClick={handlePreview}
+                disabled={triggering}
+                className="w-full mt-3 rounded-full gap-2"
+                variant="outline"
+              >
+                <Sparkles className="h-4 w-4" strokeWidth={1.8} />
+                {selected.unlocked ? "Volver a ver la animación" : "Desbloquear y ver animación"}
+              </Button>
             </>
           )}
         </DialogContent>
