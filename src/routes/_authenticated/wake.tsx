@@ -103,6 +103,8 @@ function WakePage() {
         qcRoot.invalidateQueries({ queryKey: ["progress"] });
         try { await checkFn(); } catch { /* silencioso */ }
         qcRoot.invalidateQueries({ queryKey: ["unseen-achievements"] });
+        qcRoot.invalidateQueries({ queryKey: ["weekly-challenges"] });
+        qcRoot.invalidateQueries({ queryKey: ["circle-leaderboard"] });
         qcRoot.invalidateQueries({ queryKey: ["achievements"] });
       })
       .catch(() => { /* silencioso */ });
