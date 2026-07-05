@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { UserPlus } from "lucide-react";
 import { MobileShell } from "@/components/mobile-shell";
 import { Button } from "@/components/ui/button";
-import { formatWakeCode } from "@/components/wake-code-card";
+
 import { supabase } from "@/integrations/supabase/client";
 import { lookupWakeCode, sendFriendRequest } from "@/lib/friends.functions";
 
