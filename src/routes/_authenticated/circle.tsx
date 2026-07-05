@@ -81,7 +81,6 @@ function CirclePage() {
             </div>
           )}
         </div>
-      </div>
     </MobileShell>
   );
 }
