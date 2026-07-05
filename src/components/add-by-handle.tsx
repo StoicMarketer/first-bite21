@@ -5,28 +5,25 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { lookupWakeCode, sendFriendRequest } from "@/lib/friends.functions";
+import { lookupUsername, sendFriendRequest } from "@/lib/friends.functions";
 
-type Preview = { id: string; username: string; display_name: string | null; avatar_url: string | null; wake_code: string };
+type Preview = { id: string; username: string; display_name: string | null; avatar_url: string | null };
 
-function format(raw: string) {
-  const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
-  return clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
+function sanitize(raw: string) {
+  return raw.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 20);
 }
 
-export function AddByCode() {
+export function AddByHandle() {
   const qc = useQueryClient();
-  const lookupFn = useServerFn(lookupWakeCode);
+  const lookupFn = useServerFn(lookupUsername);
   const sendFn = useServerFn(sendFriendRequest);
   const [value, setValue] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
 
-  const cleanLen = value.replace(/[^A-Z0-9]/gi, "").length;
-
   const lookup = useMutation({
-    mutationFn: (code: string) => lookupFn({ data: { code } }),
+    mutationFn: (username: string) => lookupFn({ data: { username } }),
     onSuccess: (r) => {
-      if (!r) { toast.error("No encontramos a nadie con ese código"); setPreview(null); return; }
+      if (!r) { toast.error("No encontramos a nadie con ese usuario"); setPreview(null); return; }
       setPreview(r as Preview);
     },
     onError: (e: Error) => { toast.error(e.message); setPreview(null); },
@@ -44,24 +41,26 @@ export function AddByCode() {
   });
 
   return (
-    <div className="mt-6">
-      <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground">Añadir por código</div>
+    <div>
       <form
-        onSubmit={(e) => { e.preventDefault(); if (cleanLen === 8) lookup.mutate(value); }}
-        className="mt-3 flex gap-2"
+        onSubmit={(e) => { e.preventDefault(); if (value.length >= 3) lookup.mutate(value); }}
+        className="flex gap-2"
       >
-        <Input
-          value={value}
-          onChange={(e) => { setValue(format(e.target.value)); setPreview(null); }}
-          placeholder="ABCD-EFGH"
-          inputMode="text"
-          autoCapitalize="characters"
-          autoComplete="off"
-          spellCheck={false}
-          className="flex-1 h-12 rounded-full bg-card border-border font-display tracking-[0.3em] text-center uppercase"
-          maxLength={9}
-        />
-        <Button type="submit" disabled={cleanLen !== 8 || lookup.isPending} className="h-12 px-5 rounded-full">
+        <div className="relative flex-1">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-display">@</span>
+          <Input
+            value={value}
+            onChange={(e) => { setValue(sanitize(e.target.value)); setPreview(null); }}
+            placeholder="usuario"
+            inputMode="text"
+            autoCapitalize="none"
+            autoComplete="off"
+            spellCheck={false}
+            className="pl-9 h-12 rounded-full bg-card border-border lowercase"
+            maxLength={20}
+          />
+        </div>
+        <Button type="submit" disabled={value.length < 3 || lookup.isPending} className="h-12 px-5 rounded-full">
           Buscar
         </Button>
       </form>

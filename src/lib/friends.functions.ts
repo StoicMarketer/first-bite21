@@ -153,3 +153,45 @@ export const regenerateWakeCode = createServerFn({ method: "POST" })
     return { wake_code: data as string };
   });
 
+// ============ Username (handle) ============
+const normalizeUsername = (raw: string) => raw.toLowerCase().replace(/[^a-z0-9_]/g, "");
+
+export const lookupUsername = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ username: z.string().min(1).max(32) }).parse(i))
+  .handler(async ({ data, context }) => {
+    const username = normalizeUsername(data.username);
+    if (username.length < 3) throw new Error("El usuario debe tener al menos 3 caracteres");
+    const { supabase, userId } = context;
+    const { data: rows, error } = await supabase.rpc("lookup_by_username", { _username: username });
+    if (error) throw new Error(error.message);
+    const profile = Array.isArray(rows) ? rows[0] : rows;
+    if (!profile) return null;
+    if (profile.id === userId) throw new Error("Ese es tu propio usuario");
+    return profile as { id: string; username: string; display_name: string | null; avatar_url: string | null };
+  });
+
+export const updateUsername = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ username: z.string().min(3).max(20) }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: result, error } = await supabase.rpc("update_my_username", { _username: data.username });
+    if (error) throw new Error(error.message);
+    return { username: result as string };
+  });
+
+export const getMyProfile = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, username, display_name, avatar_url")
+      .eq("id", userId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  });
+
+

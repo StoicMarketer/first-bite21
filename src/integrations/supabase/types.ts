@@ -380,6 +380,15 @@ export type Database = {
       generate_channel_invite_code: { Args: never; Returns: string }
       generate_wake_code: { Args: never; Returns: string }
       join_channel_by_invite: { Args: { _code: string }; Returns: string }
+      lookup_by_username: {
+        Args: { _username: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          id: string
+          username: string
+        }[]
+      }
       lookup_by_wake_code: {
         Args: { _code: string }
         Returns: {
@@ -404,6 +413,7 @@ export type Database = {
         }[]
       }
       regenerate_my_wake_code: { Args: never; Returns: string }
+      update_my_username: { Args: { _username: string }; Returns: string }
     }
     Enums: {
       friendship_status: "pending" | "accepted" | "blocked"

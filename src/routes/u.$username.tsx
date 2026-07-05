@@ -6,20 +6,19 @@ import { toast } from "sonner";
 import { UserPlus } from "lucide-react";
 import { MobileShell } from "@/components/mobile-shell";
 import { Button } from "@/components/ui/button";
-
 import { supabase } from "@/integrations/supabase/client";
-import { lookupWakeCode, sendFriendRequest } from "@/lib/friends.functions";
+import { lookupUsername, sendFriendRequest } from "@/lib/friends.functions";
 
-export const Route = createFileRoute("/add/$code")({
-  component: AddByCodePage,
+export const Route = createFileRoute("/u/$username")({
+  component: ProfileInvitePage,
 });
 
-type Preview = { id: string; username: string; display_name: string | null; avatar_url: string | null; wake_code: string };
+type Preview = { id: string; username: string; display_name: string | null; avatar_url: string | null };
 
-function AddByCodePage() {
-  const { code } = Route.useParams();
+function ProfileInvitePage() {
+  const { username } = Route.useParams();
   const navigate = useNavigate();
-  const lookupFn = useServerFn(lookupWakeCode);
+  const lookupFn = useServerFn(lookupUsername);
   const sendFn = useServerFn(sendFriendRequest);
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -29,15 +28,10 @@ function AddByCodePage() {
   }, []);
 
   const lookup = useMutation({
-    mutationFn: () => lookupFn({ data: { code } }),
-    onSuccess: (r) => {
-      if (r) {
-        navigate({ to: "/u/$username", params: { username: (r as Preview).username }, replace: true });
-      } else toast.error("Código no encontrado");
-    },
+    mutationFn: () => lookupFn({ data: { username } }),
+    onSuccess: (r) => { if (r) setPreview(r as Preview); else toast.error("Usuario no encontrado"); },
     onError: (e: Error) => toast.error(e.message),
   });
-
 
   useEffect(() => {
     if (authed) lookup.mutate();
@@ -54,9 +48,11 @@ function AddByCodePage() {
   });
 
   function goSignIn() {
-    if (typeof window !== "undefined") sessionStorage.setItem("pendingWakeCode", code);
+    if (typeof window !== "undefined") sessionStorage.setItem("pendingUsername", username);
     navigate({ to: "/auth" });
   }
+
+  const displayInitial = (preview?.display_name || preview?.username || username).charAt(0).toUpperCase();
 
   return (
     <MobileShell hideTabBar>
@@ -64,13 +60,13 @@ function AddByCodePage() {
         <div className="text-center">
           <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground">Invitación</div>
           <h1 className="font-display text-4xl mt-3 leading-tight">Te quieren despertar.</h1>
-          <p className="mt-4 font-display text-2xl tracking-[0.15em]">{code.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^(.{4})(.{4}).*/, "$1 · $2")}</p>
+          <p className="mt-4 font-display text-2xl">@{username}</p>
         </div>
 
         {authed === false && (
           <div className="mt-10 space-y-3">
             <p className="text-sm text-muted-foreground text-center leading-relaxed">
-              Entra o crea tu cuenta para añadir este código a tu círculo.
+              Entra o crea tu cuenta para añadir a @{username} a tu círculo.
             </p>
             <Button onClick={goSignIn} className="w-full h-12 rounded-full">Entrar / Crear cuenta</Button>
           </div>
@@ -82,7 +78,7 @@ function AddByCodePage() {
               <div className="h-14 w-14 rounded-full bg-accent overflow-hidden flex items-center justify-center">
                 {preview.avatar_url
                   ? <img src={preview.avatar_url} alt="" className="h-full w-full object-cover" />
-                  : <span className="font-display text-xl">{(preview.display_name || preview.username).charAt(0).toUpperCase()}</span>}
+                  : <span className="font-display text-xl">{displayInitial}</span>}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-base truncate">{preview.display_name || preview.username}</div>
