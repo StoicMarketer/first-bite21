@@ -167,7 +167,7 @@ function HomePage() {
               </div>
             </div>
             <button
-              onClick={addAlarm}
+              onClick={openCreate}
               aria-label="Añadir alarma"
               className="h-11 w-11 rounded-full bg-foreground text-background flex items-center justify-center active:scale-95 transition-transform"
             >
@@ -188,7 +188,7 @@ function HomePage() {
         <div className="mt-4 space-y-3">
           {alarms.length === 0 && (
             <button
-              onClick={addAlarm}
+              onClick={openCreate}
               className="w-full p-5 rounded-3xl border border-dashed border-border text-sm text-muted-foreground text-left"
             >
               Aún no hay alarmas. Toca + para crear la primera.
