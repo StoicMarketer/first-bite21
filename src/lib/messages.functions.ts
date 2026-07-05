@@ -18,21 +18,26 @@ export const sendMessage = createServerFn({ method: "POST" })
     if (data.kind === "text" && !data.text) throw new Error("Falta el texto");
     if (data.kind === "audio" && !data.audioPath) throw new Error("Falta el audio");
 
-    // Compute the receiver's next alarm date (scheduled_for)
-    const { data: alarm } = await supabase
+    // Compute the receiver's next alarm date (scheduled_for) using the earliest active alarm
+    const { data: alarms } = await supabase
       .from("alarms")
       .select("alarm_time, is_active")
       .eq("user_id", data.receiverId)
-      .maybeSingle();
+      .eq("is_active", true);
 
     const today = new Date();
     const scheduled = new Date(today);
-    if (alarm?.alarm_time) {
-      const [h, m] = alarm.alarm_time.split(":").map(Number);
-      const cand = new Date(today);
-      cand.setHours(h, m, 0, 0);
-      if (cand.getTime() <= today.getTime()) cand.setDate(cand.getDate() + 1);
-      scheduled.setTime(cand.getTime());
+    const activeTimes = (alarms ?? []).map((a) => a.alarm_time).filter(Boolean) as string[];
+    if (activeTimes.length > 0) {
+      const candidates = activeTimes.map((t) => {
+        const [h, m] = t.split(":").map(Number);
+        const c = new Date(today);
+        c.setHours(h, m, 0, 0);
+        if (c.getTime() <= today.getTime()) c.setDate(c.getDate() + 1);
+        return c;
+      });
+      candidates.sort((a, b) => a.getTime() - b.getTime());
+      scheduled.setTime(candidates[0].getTime());
     } else {
       scheduled.setDate(scheduled.getDate() + 1);
     }
@@ -299,27 +304,96 @@ export const getMyOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const [{ data: profile }, { data: alarm }, { count: pendingCount }] = await Promise.all([
+    const [{ data: profile }, { data: alarms }, { count: pendingCount }] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).single(),
-      supabase.from("alarms").select("*").eq("user_id", userId).maybeSingle(),
+      supabase.from("alarms").select("*").eq("user_id", userId).order("alarm_time", { ascending: true }),
       supabase.from("friendships").select("id", { count: "exact", head: true }).eq("friend_id", userId).eq("status", "pending"),
     ]);
-    return { profile, alarm, pendingCount: pendingCount ?? 0 };
+    const list = alarms ?? [];
+    // Backward-compat: expose the first active alarm (or first alarm) as `alarm`.
+    const primary = list.find((a) => a.is_active) ?? list[0] ?? null;
+    return { profile, alarm: primary, alarms: list, pendingCount: pendingCount ?? 0 };
+  });
+
+export const listAlarms = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data } = await supabase
+      .from("alarms")
+      .select("*")
+      .eq("user_id", userId)
+      .order("alarm_time", { ascending: true });
+    return data ?? [];
+  });
+
+export const createAlarm = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) =>
+    z.object({
+      alarmTime: z.string().regex(/^\d{2}:\d{2}$/),
+      isActive: z.boolean().optional(),
+      label: z.string().trim().max(40).optional(),
+    }).parse(i)
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: row, error } = await supabase
+      .from("alarms")
+      .insert({
+        user_id: userId,
+        alarm_time: data.alarmTime + ":00",
+        is_active: data.isActive ?? true,
+        label: data.label ?? null,
+      })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
   });
 
 export const updateAlarm = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) =>
     z.object({
+      id: z.string().uuid().optional(),
       alarmTime: z.string().regex(/^\d{2}:\d{2}$/),
       isActive: z.boolean(),
+      label: z.string().trim().max(40).nullish(),
     }).parse(i)
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { error } = await supabase
-      .from("alarms")
-      .upsert({ user_id: userId, alarm_time: data.alarmTime + ":00", is_active: data.isActive }, { onConflict: "user_id" });
+    const payload: { alarm_time: string; is_active: boolean; label?: string | null } = {
+      alarm_time: data.alarmTime + ":00",
+      is_active: data.isActive,
+    };
+    if (data.label !== undefined) payload.label = data.label ?? null;
+
+    if (data.id) {
+      const { error } = await supabase.from("alarms").update(payload).eq("id", data.id).eq("user_id", userId);
+      if (error) throw new Error(error.message);
+    } else {
+      // Backward compat: pick the earliest alarm as target, or create one.
+      const { data: existing } = await supabase
+        .from("alarms").select("id").eq("user_id", userId).order("alarm_time", { ascending: true }).limit(1);
+      if (existing && existing.length > 0) {
+        const { error } = await supabase.from("alarms").update(payload).eq("id", existing[0].id);
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await supabase.from("alarms").insert({ user_id: userId, ...payload });
+        if (error) throw new Error(error.message);
+      }
+    }
+    return { ok: true };
+  });
+
+export const deleteAlarm = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { error } = await supabase.from("alarms").delete().eq("id", data.id).eq("user_id", userId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
