@@ -186,13 +186,6 @@ export const triggerAchievementPreview = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
-  .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => z.object({ code: z.string() }).parse(i))
-  .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.rpc("mark_achievement_seen", { _code: data.code });
-    if (error) throw new Error(error.message);
-    return { ok: true };
-  });
 
 // ============ Weekly challenges ============
 const CHALLENGE_META: Record<string, { title: string; icon: string }> = {
