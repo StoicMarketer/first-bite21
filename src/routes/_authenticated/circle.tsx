@@ -95,6 +95,7 @@ function CirclePage() {
           )}
         </div>
       </div>
+      <SettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} />
     </MobileShell>
   );
 }
