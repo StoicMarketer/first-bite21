@@ -64,7 +64,7 @@ function AddByCodePage() {
         <div className="text-center">
           <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground">Invitación</div>
           <h1 className="font-display text-4xl mt-3 leading-tight">Te quieren despertar.</h1>
-          <p className="mt-4 font-display text-2xl tracking-[0.15em]">{formatWakeCode(code)}</p>
+          <p className="mt-4 font-display text-2xl tracking-[0.15em]">{code.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^(.{4})(.{4}).*/, "$1 · $2")}</p>
         </div>
 
         {authed === false && (
