@@ -143,7 +143,14 @@ function HomePage() {
 
   async function saveNewAlarm() {
     const t = `${String(draftHour).padStart(2, "0")}:${String(draftMinute).padStart(2, "0")}`;
-    await createMut.mutateAsync({ alarmTime: t, isActive: true });
+    const days = draftDays.length > 0 ? draftDays : ALL_DAYS;
+    const label = draftLabel.trim();
+    await createMut.mutateAsync({
+      alarmTime: t,
+      isActive: true,
+      daysOfWeek: days,
+      ...(label ? { label } : {}),
+    });
     setCreateOpen(false);
   }
 
