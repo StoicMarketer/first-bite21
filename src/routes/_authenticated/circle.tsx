@@ -74,8 +74,12 @@ function CirclePage() {
           wakeStreak={progress?.wakeStreak ?? 0}
         />
 
+        <WeeklyChallengesCard />
+
+        <CircleLeaderboard />
 
         <AchievementsGrid />
+
 
         <div className="mt-10">
 
