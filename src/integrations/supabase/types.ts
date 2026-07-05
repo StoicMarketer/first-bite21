@@ -19,6 +19,7 @@ export type Database = {
           alarm_time: string
           id: string
           is_active: boolean
+          label: string | null
           last_fired_at: string | null
           last_fired_on: string | null
           next_trigger_at: string | null
@@ -30,6 +31,7 @@ export type Database = {
           alarm_time?: string
           id?: string
           is_active?: boolean
+          label?: string | null
           last_fired_at?: string | null
           last_fired_on?: string | null
           next_trigger_at?: string | null
@@ -41,6 +43,7 @@ export type Database = {
           alarm_time?: string
           id?: string
           is_active?: boolean
+          label?: string | null
           last_fired_at?: string | null
           last_fired_on?: string | null
           next_trigger_at?: string | null
