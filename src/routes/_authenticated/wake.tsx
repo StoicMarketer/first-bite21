@@ -89,6 +89,20 @@ function WakePage() {
     return () => clearInterval(t);
   }, []);
 
+  // Registrar apertura de /wake para el sistema de Soles (una sola vez por montaje).
+  const wakeRegisteredRef = useRef(false);
+  useEffect(() => {
+    if (wakeRegisteredRef.current) return;
+    if (!queueData) return;
+    wakeRegisteredRef.current = true;
+    wakeOpenFn()
+      .then((r) => {
+        if (r.levelUp) toast.success(`¡Subiste a nivel ${r.newLevel}! ☀`);
+        qcRoot.invalidateQueries({ queryKey: ["progress"] });
+      })
+      .catch(() => { /* silencioso */ });
+  }, [queueData, wakeOpenFn, qcRoot]);
+
   useEffect(() => {
     return () => {
       cancelledRef.current = true;
