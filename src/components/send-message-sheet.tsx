@@ -148,9 +148,11 @@ export function SendMessageSheet({ friend, onClose }: { friend: Friend | null; o
       const path = `${friend.id}/${uid}-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage.from("wake-audios").upload(path, preview.blob, { contentType: preview.mime, upsert: false });
       if (upErr) throw upErr;
-      await sendFn({ data: { receiverId: friend.id, kind: "audio" as const, audioPath: path } });
+      const res = await sendFn({ data: { receiverId: friend.id, kind: "audio" as const, audioPath: path } });
       toast.success("Audio enviado — llegará al amanecer.");
+      if (res?.progress?.levelUp) toast.success(`¡Subiste a nivel ${res.progress.newLevel}! ☀`);
       qc.invalidateQueries({ queryKey: ["inbox"] });
+      qc.invalidateQueries({ queryKey: ["progress"] });
       resetAll();
       onClose();
     } catch (e) {
