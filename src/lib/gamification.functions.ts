@@ -149,3 +149,86 @@ export const markAchievementSeen = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// ============ Weekly challenges ============
+const CHALLENGE_META: Record<string, { title: string; icon: string }> = {
+  send_5_people: { title: "Envía amaneceres a 5 personas", icon: "✉️" },
+  wake_5_days: { title: "Despierta con la app 5 días", icon: "🌄" },
+  streak_send_7: { title: "Mantén tu racha de envío 7 días", icon: "🔥" },
+  send_new_person: { title: "Envía a alguien nuevo", icon: "🌟" },
+  send_10_messages: { title: "Envía 10 amaneceres", icon: "🌤️" },
+};
+
+export const getWeeklyChallenges = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data, error } = await supabase.rpc("resolve_weekly_challenges");
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as Array<{ code: string; target: number; progress: number; completed: boolean; reward: number }>;
+    return rows.map((r) => ({
+      code: r.code,
+      title: CHALLENGE_META[r.code]?.title ?? r.code,
+      icon: CHALLENGE_META[r.code]?.icon ?? "✨",
+      target: r.target,
+      progress: Math.min(r.progress, r.target),
+      completed: r.completed,
+      reward: r.reward,
+    }));
+  });
+
+// ============ Circle leaderboard (últimos 7 días) ============
+export const getCircleLeaderboard = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data: friends } = await supabase
+      .from("friendships")
+      .select("user_id, friend_id")
+      .eq("status", "accepted")
+      .or(`user_id.eq.${userId},friend_id.eq.${userId}`);
+    const ids = new Set<string>([userId]);
+    (friends ?? []).forEach((f) => {
+      if (f.user_id !== userId) ids.add(f.user_id);
+      if (f.friend_id !== userId) ids.add(f.friend_id);
+    });
+    const idList = Array.from(ids);
+    if (idList.length === 0) return [] as Array<{ id: string; username: string; displayName: string | null; avatarUrl: string | null; soles: number; level: number; isMe: boolean }>;
+
+    const weekStart = new Date();
+    weekStart.setUTCHours(0, 0, 0, 0);
+    const day = weekStart.getUTCDay();
+    const diff = (day === 0 ? -6 : 1 - day); // ISO week starts Monday
+    weekStart.setUTCDate(weekStart.getUTCDate() + diff);
+
+    const [{ data: events }, { data: profiles }, { data: progress }] = await Promise.all([
+      supabase
+        .from("sunbeam_events")
+        .select("user_id, amount")
+        .in("user_id", idList)
+        .gte("created_at", weekStart.toISOString()),
+      supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url")
+        .in("id", idList),
+      supabase
+        .from("user_progress")
+        .select("user_id, level")
+        .in("user_id", idList),
+    ]);
+    const sums = new Map<string, number>();
+    (events ?? []).forEach((e) => sums.set(e.user_id, (sums.get(e.user_id) ?? 0) + e.amount));
+    const levels = new Map<string, number>();
+    (progress ?? []).forEach((p) => levels.set(p.user_id, p.level ?? 0));
+    return (profiles ?? [])
+      .map((p) => ({
+        id: p.id,
+        username: p.username,
+        displayName: p.display_name,
+        avatarUrl: p.avatar_url,
+        soles: sums.get(p.id) ?? 0,
+        level: levels.get(p.id) ?? 0,
+        isMe: p.id === userId,
+      }))
+      .sort((a, b) => b.soles - a.soles);
+  });
