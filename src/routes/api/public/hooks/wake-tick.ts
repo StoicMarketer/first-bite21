@@ -98,7 +98,7 @@ export const Route = createFileRoute("/api/public/hooks/wake-tick")({
           await supabaseAdmin
             .from("alarms")
             .update({ last_fired_on: today, last_fired_at: new Date().toISOString() })
-            .eq("user_id", a.user_id);
+            .eq("id", a.id);
 
           results.push({ user: a.user_id, sent });
         }
