@@ -9,7 +9,7 @@ import { MobileShell } from "@/components/mobile-shell";
 import { Button } from "@/components/ui/button";
 import { getWakeQueue, markPlayed, saveMessage, sendReaction, updateAlarm } from "@/lib/messages.functions";
 import { getAiWakeMessage } from "@/lib/ai-wake.functions";
-import { registerWakeOpen } from "@/lib/gamification.functions";
+import { registerWakeOpen, checkAchievements } from "@/lib/gamification.functions";
 import { primeAudio, startRecorder } from "@/lib/audio-context";
 import { wakeAudio } from "@/lib/wake-audio";
 import { toast } from "sonner";
@@ -42,7 +42,9 @@ function WakePage() {
   const reactFn = useServerFn(sendReaction);
   const updateAlarmFn = useServerFn(updateAlarm);
   const wakeOpenFn = useServerFn(registerWakeOpen);
+  const checkFn = useServerFn(checkAchievements);
   const qcRoot = useQueryClient();
+
 
   const { data: queueData, isLoading } = useQuery({
     queryKey: ["wakeQueue", force, messageId],
@@ -96,12 +98,16 @@ function WakePage() {
     if (!queueData) return;
     wakeRegisteredRef.current = true;
     wakeOpenFn()
-      .then((r) => {
+      .then(async (r) => {
         if (r.levelUp) toast.success(`¡Subiste a nivel ${r.newLevel}! ☀`);
         qcRoot.invalidateQueries({ queryKey: ["progress"] });
+        try { await checkFn(); } catch { /* silencioso */ }
+        qcRoot.invalidateQueries({ queryKey: ["unseen-achievements"] });
+        qcRoot.invalidateQueries({ queryKey: ["achievements"] });
       })
       .catch(() => { /* silencioso */ });
-  }, [queueData, wakeOpenFn, qcRoot]);
+  }, [queueData, wakeOpenFn, checkFn, qcRoot]);
+
 
   useEffect(() => {
     return () => {

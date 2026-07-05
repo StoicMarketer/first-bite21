@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { AlarmClock, Users, Inbox, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AchievementUnlockedModal } from "@/components/achievement-unlocked-modal";
 
 export function MobileShell({ children, hideTabBar }: { children: ReactNode; hideTabBar?: boolean }) {
   return (
@@ -11,10 +12,12 @@ export function MobileShell({ children, hideTabBar }: { children: ReactNode; hid
           {children}
         </main>
         {!hideTabBar && <TabBar />}
+        <AchievementUnlockedModal />
       </div>
     </div>
   );
 }
+
 
 const TABS = [
   { to: "/home", label: "Alarma", icon: AlarmClock },

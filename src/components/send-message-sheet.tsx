@@ -8,6 +8,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { sendMessage } from "@/lib/messages.functions";
+import { checkAchievements } from "@/lib/gamification.functions";
+
 import { startRecorder } from "@/lib/audio-context";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -32,20 +34,26 @@ export function SendMessageSheet({ friend, onClose }: { friend: Friend | null; o
   const progressRef = useRef<HTMLDivElement | null>(null);
   const qc = useQueryClient();
   const sendFn = useServerFn(sendMessage);
+  const checkFn = useServerFn(checkAchievements);
+
 
   const sendText = useMutation({
     mutationFn: (payload: { receiverId: string; text: string }) =>
       sendFn({ data: { receiverId: payload.receiverId, kind: "text" as const, text: payload.text } }),
-    onSuccess: (res) => {
+    onSuccess: async (res) => {
       toast.success("Mensaje enviado — llegará al amanecer.");
       if (res?.progress?.levelUp) toast.success(`¡Subiste a nivel ${res.progress.newLevel}! ☀`);
       setText("");
       qc.invalidateQueries({ queryKey: ["inbox"] });
       qc.invalidateQueries({ queryKey: ["progress"] });
+      try { await checkFn(); } catch { /* silencioso */ }
+      qc.invalidateQueries({ queryKey: ["unseen-achievements"] });
+      qc.invalidateQueries({ queryKey: ["achievements"] });
       onClose();
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   useEffect(() => {
     if (!recording) return;
@@ -153,9 +161,13 @@ export function SendMessageSheet({ friend, onClose }: { friend: Friend | null; o
       if (res?.progress?.levelUp) toast.success(`¡Subiste a nivel ${res.progress.newLevel}! ☀`);
       qc.invalidateQueries({ queryKey: ["inbox"] });
       qc.invalidateQueries({ queryKey: ["progress"] });
+      try { await checkFn(); } catch { /* silencioso */ }
+      qc.invalidateQueries({ queryKey: ["unseen-achievements"] });
+      qc.invalidateQueries({ queryKey: ["achievements"] });
       resetAll();
       onClose();
     } catch (e) {
+
       const m = e instanceof Error ? e.message : "Error al enviar";
       toast.error(m);
     } finally {

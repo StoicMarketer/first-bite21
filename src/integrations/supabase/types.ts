@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      achievements: {
+        Row: {
+          code: string
+          description: string
+          family: string
+          icon: string
+          rarity: string
+          soles_reward: number
+          sort_order: number
+          title: string
+        }
+        Insert: {
+          code: string
+          description: string
+          family: string
+          icon: string
+          rarity: string
+          soles_reward?: number
+          sort_order?: number
+          title: string
+        }
+        Update: {
+          code?: string
+          description?: string
+          family?: string
+          icon?: string
+          rarity?: string
+          soles_reward?: number
+          sort_order?: number
+          title?: string
+        }
+        Relationships: []
+      }
       alarms: {
         Row: {
           alarm_time: string
@@ -425,6 +458,35 @@ export type Database = {
         }
         Relationships: []
       }
+      user_achievements: {
+        Row: {
+          achievement_code: string
+          seen: boolean
+          unlocked_at: string
+          user_id: string
+        }
+        Insert: {
+          achievement_code: string
+          seen?: boolean
+          unlocked_at?: string
+          user_id: string
+        }
+        Update: {
+          achievement_code?: string
+          seen?: boolean
+          unlocked_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_achievements_achievement_code_fkey"
+            columns: ["achievement_code"]
+            isOneToOne: false
+            referencedRelation: "achievements"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       user_progress: {
         Row: {
           freeze_reset_month: string
@@ -498,6 +560,17 @@ export type Database = {
           new_total: number
         }[]
       }
+      check_achievements: {
+        Args: never
+        Returns: {
+          code: string
+          description: string
+          icon: string
+          rarity: string
+          soles_reward: number
+          title: string
+        }[]
+      }
       fanout_channel_messages: { Args: never; Returns: number }
       generate_channel_invite_code: { Args: never; Returns: string }
       generate_wake_code: { Args: never; Returns: string }
@@ -535,6 +608,7 @@ export type Database = {
           visibility: string
         }[]
       }
+      mark_achievement_seen: { Args: { _code: string }; Returns: undefined }
       regenerate_my_wake_code: { Args: never; Returns: string }
       update_my_username: { Args: { _username: string }; Returns: string }
     }

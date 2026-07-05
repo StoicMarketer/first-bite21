@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
 
 // Umbrales de nivel (mantener en sync con level_from_soles en la BD)
 export const LEVELS = [
@@ -59,4 +61,91 @@ export const registerWakeOpen = createServerFn({ method: "POST" })
       levelUp: (row?.level_up as boolean) ?? false,
       wakeStreak: (row?.wake_streak as number) ?? 0,
     };
+  });
+
+// ============ Achievements ============
+export type UnlockedAchievement = {
+  code: string;
+  title: string;
+  description: string;
+  icon: string;
+  rarity: string;
+  solesReward: number;
+};
+
+export const checkAchievements = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<UnlockedAchievement[]> => {
+    const { supabase } = context;
+    const { data, error } = await supabase.rpc("check_achievements");
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as Array<{ code: string; title: string; description: string; icon: string; rarity: string; soles_reward: number }>;
+    return rows.map((r) => ({
+      code: r.code,
+      title: r.title,
+      description: r.description,
+      icon: r.icon,
+      rarity: r.rarity,
+      solesReward: r.soles_reward,
+    }));
+  });
+
+export const getAchievements = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const [catalog, unlocked] = await Promise.all([
+      supabase.from("achievements").select("code, family, title, description, icon, rarity, soles_reward, sort_order").order("sort_order"),
+      supabase.from("user_achievements").select("achievement_code, unlocked_at, seen").eq("user_id", userId),
+    ]);
+    if (catalog.error) throw new Error(catalog.error.message);
+    if (unlocked.error) throw new Error(unlocked.error.message);
+    const unlockedMap = new Map(unlocked.data.map((u) => [u.achievement_code, u]));
+    return (catalog.data ?? []).map((c) => {
+      const u = unlockedMap.get(c.code);
+      return {
+        code: c.code,
+        family: c.family,
+        title: c.title,
+        description: c.description,
+        icon: c.icon,
+        rarity: c.rarity,
+        solesReward: c.soles_reward,
+        unlocked: !!u,
+        unlockedAt: u?.unlocked_at ?? null,
+        seen: u?.seen ?? true,
+      };
+    });
+  });
+
+export const getUnseenAchievements = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<UnlockedAchievement[]> => {
+    const { supabase, userId } = context;
+    const { data, error } = await supabase
+      .from("user_achievements")
+      .select("achievement_code, achievements!inner(code, title, description, icon, rarity, soles_reward)")
+      .eq("user_id", userId)
+      .eq("seen", false);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => {
+      const a = r.achievements as unknown as { code: string; title: string; description: string; icon: string; rarity: string; soles_reward: number };
+      return {
+        code: a.code,
+        title: a.title,
+        description: a.description,
+        icon: a.icon,
+        rarity: a.rarity,
+        solesReward: a.soles_reward,
+      };
+    });
+  });
+
+export const markAchievementSeen = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ code: z.string() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.rpc("mark_achievement_seen", { _code: data.code });
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
