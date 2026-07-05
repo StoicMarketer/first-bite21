@@ -17,6 +17,7 @@ export type Database = {
       alarms: {
         Row: {
           alarm_time: string
+          days_of_week: number[]
           id: string
           is_active: boolean
           label: string | null
@@ -29,6 +30,7 @@ export type Database = {
         }
         Insert: {
           alarm_time?: string
+          days_of_week?: number[]
           id?: string
           is_active?: boolean
           label?: string | null
@@ -41,6 +43,7 @@ export type Database = {
         }
         Update: {
           alarm_time?: string
+          days_of_week?: number[]
           id?: string
           is_active?: boolean
           label?: string | null

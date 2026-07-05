@@ -6,12 +6,30 @@ import { Share2, Plus, AlarmClockCheck, Sparkles, Trash2, ChevronDown } from "lu
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { MobileShell } from "@/components/mobile-shell";
 import { SendMessageSheet } from "@/components/send-message-sheet";
 import { PushBanner } from "@/components/push-banner";
 import { getMyOverview, updateAlarm, createAlarm, deleteAlarm, getWakeQueue } from "@/lib/messages.functions";
 import { getCircle } from "@/lib/friends.functions";
-import { cn, humanCountdown, nextTriggerAt } from "@/lib/utils";
+import { cn, humanCountdown, nextTriggerForAlarm } from "@/lib/utils";
+
+// Spanish weekday labels. Index 0 = Sunday to match JS Date#getDay().
+const DAY_LABELS = ["D", "L", "M", "X", "J", "V", "S"];
+const DAY_FULL = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+
+function formatDays(days: number[] | null | undefined): string {
+  const d = (days && days.length > 0) ? [...days].sort((a, b) => a - b) : ALL_DAYS;
+  if (d.length === 7) return "Todos los días";
+  const weekdays = [1, 2, 3, 4, 5];
+  const weekend = [0, 6];
+  if (d.length === 5 && weekdays.every((x) => d.includes(x))) return "Lunes a viernes";
+  if (d.length === 2 && weekend.every((x) => d.includes(x))) return "Fines de semana";
+  // Show in week order starting Monday
+  const ordered = [1, 2, 3, 4, 5, 6, 0].filter((x) => d.includes(x));
+  return ordered.map((x) => DAY_LABELS[x]).join(" · ");
+}
 
 export const Route = createFileRoute("/_authenticated/home")({
   component: HomePage,
@@ -19,7 +37,7 @@ export const Route = createFileRoute("/_authenticated/home")({
 
 type Friend = { id: string; username: string; display_name: string | null; avatar_url: string | null; alarm_time: string | null; alarm_active: boolean };
 
-type AlarmRow = { id: string; alarm_time: string; is_active: boolean; label: string | null };
+type AlarmRow = { id: string; alarm_time: string; is_active: boolean; label: string | null; days_of_week: number[] | null };
 
 function HomePage() {
   const navigate = useNavigate();
@@ -35,18 +53,18 @@ function HomePage() {
   const { data: circle } = useQuery({ queryKey: ["circle"], queryFn: () => circleFn() });
 
   const alarms: AlarmRow[] = useMemo(() => {
-    const raw = (overview?.alarms ?? []) as Array<{ id: string; alarm_time: string; is_active: boolean; label: string | null }>;
+    const raw = (overview?.alarms ?? []) as Array<{ id: string; alarm_time: string; is_active: boolean; label: string | null; days_of_week: number[] | null }>;
     return [...raw]
-      .map((a) => ({ ...a, alarm_time: a.alarm_time.slice(0, 5) }))
+      .map((a) => ({ ...a, alarm_time: a.alarm_time.slice(0, 5), days_of_week: a.days_of_week ?? ALL_DAYS }))
       .sort((a, b) => a.alarm_time.localeCompare(b.alarm_time));
   }, [overview]);
 
   const updateMut = useMutation({
-    mutationFn: (p: { id: string; alarmTime: string; isActive: boolean }) => updateAlarmFn({ data: p }),
+    mutationFn: (p: { id: string; alarmTime: string; isActive: boolean; label?: string | null; daysOfWeek?: number[] }) => updateAlarmFn({ data: p }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["overview"] }),
   });
   const createMut = useMutation({
-    mutationFn: (p: { alarmTime: string; isActive: boolean }) => createAlarmFn({ data: p }),
+    mutationFn: (p: { alarmTime: string; isActive: boolean; label?: string; daysOfWeek?: number[] }) => createAlarmFn({ data: p }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["overview"] }),
   });
   const deleteMut = useMutation({
@@ -61,17 +79,20 @@ function HomePage() {
     return () => clearInterval(t);
   }, []);
 
-  // Trigger navigation to /wake as soon as any active alarm hits its time.
+  // Trigger navigation to /wake as soon as any active alarm hits its time (respecting days_of_week).
   useEffect(() => {
     const actives = alarms.filter((a) => a.is_active);
     if (actives.length === 0) return;
-    const targets = actives.map((a) => nextTriggerAt(a.alarm_time).getTime());
     const i = setInterval(() => {
-      const t = Date.now();
-      if (targets.some((tt) => t >= tt)) {
-        if (typeof window !== "undefined" && window.location.pathname !== "/wake") {
-          navigate({ to: "/wake" });
-        }
+      const d = new Date();
+      const hhmm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      const today = d.getDay();
+      const hit = actives.some((a) => {
+        const days = (a.days_of_week && a.days_of_week.length > 0) ? a.days_of_week : ALL_DAYS;
+        return a.alarm_time === hhmm && days.includes(today);
+      });
+      if (hit && typeof window !== "undefined" && window.location.pathname !== "/wake") {
+        navigate({ to: "/wake" });
       }
     }, 1000);
     return () => clearInterval(i);
@@ -82,13 +103,13 @@ function HomePage() {
     const actives = alarms.filter((a) => a.is_active);
     if (actives.length === 0) return null;
     const sorted = [...actives].sort(
-      (a, b) => nextTriggerAt(a.alarm_time).getTime() - nextTriggerAt(b.alarm_time).getTime()
+      (a, b) => nextTriggerForAlarm(a.alarm_time, a.days_of_week).getTime() - nextTriggerForAlarm(b.alarm_time, b.days_of_week).getTime()
     );
     return sorted[0];
   }, [alarms, now]);
 
   const nextTarget = useMemo(
-    () => (nextAlarm ? nextTriggerAt(nextAlarm.alarm_time) : null),
+    () => (nextAlarm ? nextTriggerForAlarm(nextAlarm.alarm_time, nextAlarm.days_of_week) : null),
     [nextAlarm, now]
   );
 
@@ -97,6 +118,9 @@ function HomePage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [draftHour, setDraftHour] = useState(7);
   const [draftMinute, setDraftMinute] = useState(0);
+  const [draftDays, setDraftDays] = useState<number[]>(ALL_DAYS);
+  const [draftLabel, setDraftLabel] = useState("");
+
 
   function openCreate() {
     let hh = 7, mm = 0;
@@ -108,12 +132,22 @@ function HomePage() {
     }
     setDraftHour(hh);
     setDraftMinute(mm);
+    setDraftDays(ALL_DAYS);
+    setDraftLabel("");
     setCreateOpen(true);
   }
 
+
   async function saveNewAlarm() {
     const t = `${String(draftHour).padStart(2, "0")}:${String(draftMinute).padStart(2, "0")}`;
-    await createMut.mutateAsync({ alarmTime: t, isActive: true });
+    const days = draftDays.length > 0 ? draftDays : ALL_DAYS;
+    const label = draftLabel.trim();
+    await createMut.mutateAsync({
+      alarmTime: t,
+      isActive: true,
+      daysOfWeek: days,
+      ...(label ? { label } : {}),
+    });
     setCreateOpen(false);
   }
 
@@ -197,24 +231,34 @@ function HomePage() {
           {alarms.map((a) => {
             const [h, m] = a.alarm_time.split(":").map(Number);
             const expanded = expandedId === a.id;
+            const dayText = formatDays(a.days_of_week);
+            const subText = a.label ? `${dayText} · ${a.label}` : dayText;
             return (
               <div key={a.id} className="rounded-3xl bg-card border border-border overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-4">
                   <button
                     onClick={() => setExpandedId(expanded ? null : a.id)}
-                    className="flex items-center gap-3 flex-1 text-left"
+                    className="flex items-center gap-3 flex-1 text-left min-w-0"
                   >
-                    <span
-                      className={cn(
-                        "font-display text-4xl tabular",
-                        !a.is_active && "text-muted-foreground/60"
-                      )}
-                    >
-                      {a.alarm_time}
-                    </span>
+                    <div className="min-w-0">
+                      <div
+                        className={cn(
+                          "font-display text-4xl tabular leading-none",
+                          !a.is_active && "text-muted-foreground/60"
+                        )}
+                      >
+                        {a.alarm_time}
+                      </div>
+                      <div className={cn(
+                        "text-[11px] mt-1.5 truncate",
+                        a.is_active ? "text-muted-foreground" : "text-muted-foreground/50"
+                      )}>
+                        {subText}
+                      </div>
+                    </div>
                     <ChevronDown
                       className={cn(
-                        "h-4 w-4 text-muted-foreground transition-transform",
+                        "h-4 w-4 text-muted-foreground transition-transform shrink-0",
                         expanded && "rotate-180"
                       )}
                       strokeWidth={1.5}
@@ -228,7 +272,7 @@ function HomePage() {
                   />
                 </div>
                 {expanded && (
-                  <div className="border-t border-border px-5 py-4 space-y-4">
+                  <div className="border-t border-border px-5 py-4 space-y-5">
                     <div className="flex items-center justify-center gap-2">
                       <TimeColumn
                         value={h}
@@ -254,6 +298,30 @@ function HomePage() {
                         }
                       />
                     </div>
+                    <div>
+                      <div className="text-[10px] tracking-[0.3em] uppercase text-muted-foreground mb-2 text-center">Repetir</div>
+                      <DayPicker
+                        value={a.days_of_week ?? ALL_DAYS}
+                        onChange={(days) => updateMut.mutate({
+                          id: a.id,
+                          alarmTime: a.alarm_time,
+                          isActive: a.is_active,
+                          daysOfWeek: days,
+                        })}
+                      />
+                    </div>
+                    <div>
+                      <div className="text-[10px] tracking-[0.3em] uppercase text-muted-foreground mb-2">Nota</div>
+                      <LabelInput
+                        initial={a.label ?? ""}
+                        onSave={(label) => updateMut.mutate({
+                          id: a.id,
+                          alarmTime: a.alarm_time,
+                          isActive: a.is_active,
+                          label: label || null,
+                        })}
+                      />
+                    </div>
                     <button
                       onClick={() => {
                         deleteMut.mutate(a.id);
@@ -270,6 +338,7 @@ function HomePage() {
             );
           })}
         </div>
+
 
         {/* Circle */}
         <div className="mt-10">
@@ -335,7 +404,20 @@ function HomePage() {
               <span className="font-display text-4xl">:</span>
               <TimeColumn value={draftMinute} max={59} onChange={setDraftMinute} />
             </div>
-            <div className="mt-8 flex gap-3">
+            <div className="mt-6">
+              <div className="text-[10px] tracking-[0.3em] uppercase text-muted-foreground mb-2 text-center">Repetir</div>
+              <DayPicker value={draftDays} onChange={setDraftDays} />
+            </div>
+            <div className="mt-5">
+              <div className="text-[10px] tracking-[0.3em] uppercase text-muted-foreground mb-2">Nota</div>
+              <Input
+                value={draftLabel}
+                onChange={(e) => setDraftLabel(e.target.value.slice(0, 40))}
+                placeholder="Ej: Trabajo, gimnasio…"
+                className="rounded-full h-10"
+              />
+            </div>
+            <div className="mt-6 flex gap-3">
               <Button variant="ghost" className="flex-1 rounded-full" onClick={() => setCreateOpen(false)}>
                 Cancelar
               </Button>
@@ -361,6 +443,54 @@ function Avatar({ src, name, active }: { src: string | null; name: string; activ
         <div className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-[color:var(--ember)] border-2 border-background" />
       )}
     </div>
+  );
+}
+
+function DayPicker({ value, onChange }: { value: number[]; onChange: (days: number[]) => void }) {
+  // Render in week order starting Monday: L M X J V S D
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  function toggle(d: number) {
+    const has = value.includes(d);
+    const next = has ? value.filter((x) => x !== d) : [...value, d];
+    onChange(next.sort((a, b) => a - b));
+  }
+  return (
+    <div className="flex items-center justify-between gap-1.5">
+      {order.map((d) => {
+        const active = value.includes(d);
+        return (
+          <button
+            key={d}
+            type="button"
+            aria-label={DAY_FULL[d]}
+            aria-pressed={active}
+            onClick={() => toggle(d)}
+            className={cn(
+              "h-9 w-9 rounded-full text-xs font-medium transition-colors border",
+              active
+                ? "bg-foreground text-background border-foreground"
+                : "bg-transparent text-muted-foreground border-border hover:text-foreground"
+            )}
+          >
+            {DAY_LABELS[d]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function LabelInput({ initial, onSave }: { initial: string; onSave: (label: string) => void }) {
+  const [val, setVal] = useState(initial);
+  useEffect(() => { setVal(initial); }, [initial]);
+  return (
+    <Input
+      value={val}
+      onChange={(e) => setVal(e.target.value.slice(0, 40))}
+      onBlur={() => { if (val.trim() !== initial.trim()) onSave(val.trim()); }}
+      placeholder="Ej: Trabajo, gimnasio…"
+      className="rounded-full h-10"
+    />
   );
 }
 

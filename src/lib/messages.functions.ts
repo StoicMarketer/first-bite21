@@ -18,26 +18,36 @@ export const sendMessage = createServerFn({ method: "POST" })
     if (data.kind === "text" && !data.text) throw new Error("Falta el texto");
     if (data.kind === "audio" && !data.audioPath) throw new Error("Falta el audio");
 
-    // Compute the receiver's next alarm date (scheduled_for) using the earliest active alarm
+    // Compute the receiver's next alarm date (scheduled_for) using the earliest active alarm,
+    // respecting the alarm's days_of_week (0=Sunday..6=Saturday).
     const { data: alarms } = await supabase
       .from("alarms")
-      .select("alarm_time, is_active")
+      .select("alarm_time, is_active, days_of_week")
       .eq("user_id", data.receiverId)
       .eq("is_active", true);
 
     const today = new Date();
     const scheduled = new Date(today);
-    const activeTimes = (alarms ?? []).map((a) => a.alarm_time).filter(Boolean) as string[];
-    if (activeTimes.length > 0) {
-      const candidates = activeTimes.map((t) => {
-        const [h, m] = t.split(":").map(Number);
-        const c = new Date(today);
-        c.setHours(h, m, 0, 0);
-        if (c.getTime() <= today.getTime()) c.setDate(c.getDate() + 1);
-        return c;
-      });
-      candidates.sort((a, b) => a.getTime() - b.getTime());
-      scheduled.setTime(candidates[0].getTime());
+    const activeAlarms = (alarms ?? []).filter((a) => a.alarm_time) as Array<{ alarm_time: string; days_of_week: number[] | null }>;
+    if (activeAlarms.length > 0) {
+      const candidates: Date[] = [];
+      for (const a of activeAlarms) {
+        const [h, m] = a.alarm_time.split(":").map(Number);
+        const dows = (a.days_of_week && a.days_of_week.length > 0) ? a.days_of_week : [0,1,2,3,4,5,6];
+        for (let offset = 0; offset < 8; offset++) {
+          const c = new Date(today);
+          c.setDate(c.getDate() + offset);
+          c.setHours(h, m, 0, 0);
+          if (c.getTime() <= today.getTime()) continue;
+          if (dows.includes(c.getDay())) { candidates.push(c); break; }
+        }
+      }
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => a.getTime() - b.getTime());
+        scheduled.setTime(candidates[0].getTime());
+      } else {
+        scheduled.setDate(scheduled.getDate() + 1);
+      }
     } else {
       scheduled.setDate(scheduled.getDate() + 1);
     }
@@ -334,10 +344,14 @@ export const createAlarm = createServerFn({ method: "POST" })
       alarmTime: z.string().regex(/^\d{2}:\d{2}$/),
       isActive: z.boolean().optional(),
       label: z.string().trim().max(40).optional(),
+      daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
     }).parse(i)
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const dow = (data.daysOfWeek && data.daysOfWeek.length > 0)
+      ? Array.from(new Set(data.daysOfWeek)).sort((a, b) => a - b)
+      : [0, 1, 2, 3, 4, 5, 6];
     const { data: row, error } = await supabase
       .from("alarms")
       .insert({
@@ -345,6 +359,7 @@ export const createAlarm = createServerFn({ method: "POST" })
         alarm_time: data.alarmTime + ":00",
         is_active: data.isActive ?? true,
         label: data.label ?? null,
+        days_of_week: dow,
       })
       .select("*")
       .single();
@@ -360,15 +375,21 @@ export const updateAlarm = createServerFn({ method: "POST" })
       alarmTime: z.string().regex(/^\d{2}:\d{2}$/),
       isActive: z.boolean(),
       label: z.string().trim().max(40).nullish(),
+      daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
     }).parse(i)
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const payload: { alarm_time: string; is_active: boolean; label?: string | null } = {
+    const payload: { alarm_time: string; is_active: boolean; label?: string | null; days_of_week?: number[] } = {
       alarm_time: data.alarmTime + ":00",
       is_active: data.isActive,
     };
     if (data.label !== undefined) payload.label = data.label ?? null;
+    if (data.daysOfWeek !== undefined) {
+      payload.days_of_week = data.daysOfWeek.length > 0
+        ? Array.from(new Set(data.daysOfWeek)).sort((a, b) => a - b)
+        : [0, 1, 2, 3, 4, 5, 6];
+    }
 
     if (data.id) {
       const { error } = await supabase.from("alarms").update(payload).eq("id", data.id).eq("user_id", userId);

@@ -21,6 +21,23 @@ export function nextTriggerAt(timeStr: string, tz?: string): Date {
   return candidate;
 }
 
+export function nextTriggerForAlarm(timeStr: string, daysOfWeek?: number[] | null): Date {
+  const [h, m] = timeStr.split(":").map(Number);
+  const days = daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : [0, 1, 2, 3, 4, 5, 6];
+  const now = new Date();
+  for (let offset = 0; offset < 8; offset++) {
+    const c = new Date(now);
+    c.setDate(c.getDate() + offset);
+    c.setHours(h, m, 0, 0);
+    if (c.getTime() <= now.getTime()) continue;
+    if (days.includes(c.getDay())) return c;
+  }
+  const fallback = new Date(now);
+  fallback.setDate(fallback.getDate() + 1);
+  fallback.setHours(h, m, 0, 0);
+  return fallback;
+}
+
 export function humanCountdown(target: Date): string {
   const ms = target.getTime() - Date.now();
   if (ms <= 0) return "ahora";
