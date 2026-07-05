@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { motion, useMotionValue, useTransform } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -9,6 +9,7 @@ import { MobileShell } from "@/components/mobile-shell";
 import { Button } from "@/components/ui/button";
 import { getWakeQueue, markPlayed, saveMessage, sendReaction, updateAlarm } from "@/lib/messages.functions";
 import { getAiWakeMessage } from "@/lib/ai-wake.functions";
+import { registerWakeOpen } from "@/lib/gamification.functions";
 import { primeAudio, startRecorder } from "@/lib/audio-context";
 import { wakeAudio } from "@/lib/wake-audio";
 import { toast } from "sonner";
