@@ -98,12 +98,16 @@ function WakePage() {
     if (!queueData) return;
     wakeRegisteredRef.current = true;
     wakeOpenFn()
-      .then((r) => {
+      .then(async (r) => {
         if (r.levelUp) toast.success(`¡Subiste a nivel ${r.newLevel}! ☀`);
         qcRoot.invalidateQueries({ queryKey: ["progress"] });
+        try { await checkFn(); } catch { /* silencioso */ }
+        qcRoot.invalidateQueries({ queryKey: ["unseen-achievements"] });
+        qcRoot.invalidateQueries({ queryKey: ["achievements"] });
       })
       .catch(() => { /* silencioso */ });
-  }, [queueData, wakeOpenFn, qcRoot]);
+  }, [queueData, wakeOpenFn, checkFn, qcRoot]);
+
 
   useEffect(() => {
     return () => {
