@@ -85,7 +85,41 @@ function SettingsPage() {
         )}
 
         <div className="mt-8 space-y-2">
+          <Section title="Perfil">
+            <div className="px-4 py-3.5 space-y-3">
+              <div className="text-sm">Tu @usuario</div>
+              <div className="text-xs text-muted-foreground">Es cómo te encuentran otros. 3–20 caracteres, sólo minúsculas, números o _.</div>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-display">@</span>
+                  <Input
+                    value={usernameDraft}
+                    onChange={(e) => setUsernameDraft(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 20))}
+                    placeholder="usuario"
+                    className="pl-8 rounded-xl bg-background lowercase"
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  className="rounded-full px-4"
+                  disabled={
+                    usernameMut.isPending ||
+                    usernameDraft.length < 3 ||
+                    usernameDraft === currentUsername
+                  }
+                  onClick={() => usernameMut.mutate(usernameDraft)}
+                >
+                  Guardar
+                </Button>
+              </div>
+            </div>
+          </Section>
+
           <Section title="Cumpleaños">
+
             <div className="px-4 py-3.5 space-y-3">
               <div className="flex items-center gap-3">
                 <Cake className="h-4 w-4" strokeWidth={1.5} />
