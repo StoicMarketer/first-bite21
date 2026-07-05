@@ -72,7 +72,10 @@ function CirclePage() {
         />
 
 
+        <AchievementsGrid />
+
         <div className="mt-10">
+
           <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground">Añadir por @usuario</div>
           <div className="mt-3">
             <AddByHandle />
