@@ -94,9 +94,11 @@ function HomePage() {
 
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [draftHour, setDraftHour] = useState(7);
+  const [draftMinute, setDraftMinute] = useState(0);
 
-  async function addAlarm() {
-    // Suggest a time 1h after the latest existing alarm, else 07:00.
+  function openCreate() {
     let hh = 7, mm = 0;
     if (alarms.length > 0) {
       const last = alarms[alarms.length - 1].alarm_time;
@@ -104,11 +106,15 @@ function HomePage() {
       hh = (lh + 1) % 24;
       mm = lm;
     }
-    const t = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-    const created = await createMut.mutateAsync({ alarmTime: t, isActive: true });
-    if (created && typeof created === "object" && "id" in created) {
-      setExpandedId((created as { id: string }).id);
-    }
+    setDraftHour(hh);
+    setDraftMinute(mm);
+    setCreateOpen(true);
+  }
+
+  async function saveNewAlarm() {
+    const t = `${String(draftHour).padStart(2, "0")}:${String(draftMinute).padStart(2, "0")}`;
+    await createMut.mutateAsync({ alarmTime: t, isActive: true });
+    setCreateOpen(false);
   }
 
   async function invite() {
