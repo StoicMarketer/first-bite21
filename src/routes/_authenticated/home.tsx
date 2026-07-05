@@ -370,27 +370,58 @@ function HomePage() {
           </div>
 
           {circle && circle.length > 0 ? (
-            <div className="mt-5 flex gap-3 overflow-x-auto no-scrollbar -mx-6 px-6 pb-2">
-              {circle.map((f) => (
+            <>
+              {/* Favoritos */}
+              <div className="mt-5 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-[10px] tracking-[0.3em] uppercase text-muted-foreground">
+                  <Star className="h-3 w-3 fill-current" strokeWidth={0} />
+                  Mis favoritos
+                </div>
+                {circle.some((f) => f.is_favorite) && (
+                  <span className="text-[10px] text-muted-foreground/70">Toca ★ para editar</span>
+                )}
+              </div>
+              {circle.some((f) => f.is_favorite) ? (
+                <div className="mt-3 flex gap-3 overflow-x-auto no-scrollbar -mx-6 px-6 pb-2">
+                  {circle.filter((f) => f.is_favorite).map((f) => (
+                    <FriendAvatarButton
+                      key={f.id}
+                      friend={f as Friend}
+                      onSelect={setSelectedFriend}
+                      onToggleFavorite={(fav) => favMut.mutate({ friendId: f.id, favorite: fav })}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-muted-foreground/80">
+                  Marca con ★ a las personas que quieres despertar más a menudo.
+                </p>
+              )}
+
+              {/* Circle completo */}
+              <div className="mt-6 text-[10px] tracking-[0.3em] uppercase text-muted-foreground">
+                Todo tu círculo
+              </div>
+              <div className="mt-3 flex gap-3 overflow-x-auto no-scrollbar -mx-6 px-6 pb-2">
+                {circle.map((f) => (
+                  <FriendAvatarButton
+                    key={f.id}
+                    friend={f as Friend}
+                    onSelect={setSelectedFriend}
+                    onToggleFavorite={(fav) => favMut.mutate({ friendId: f.id, favorite: fav })}
+                  />
+                ))}
                 <button
-                  key={f.id}
-                  onClick={() => setSelectedFriend(f as Friend)}
+                  onClick={() => navigate({ to: "/circle" })}
                   className="flex-shrink-0 flex flex-col items-center gap-2 w-20"
                 >
-                  <Avatar src={f.avatar_url} name={f.display_name || f.username} active={f.alarm_active} />
-                  <span className="text-xs truncate w-full text-center">{f.display_name || f.username}</span>
+                  <div className="h-16 w-16 rounded-full border border-dashed border-border flex items-center justify-center">
+                    <Plus className="h-5 w-5 text-muted-foreground" strokeWidth={1.5} />
+                  </div>
+                  <span className="text-xs text-muted-foreground">Añadir</span>
                 </button>
-              ))}
-              <button
-                onClick={() => navigate({ to: "/circle" })}
-                className="flex-shrink-0 flex flex-col items-center gap-2 w-20"
-              >
-                <div className="h-16 w-16 rounded-full border border-dashed border-border flex items-center justify-center">
-                  <Plus className="h-5 w-5 text-muted-foreground" strokeWidth={1.5} />
-                </div>
-                <span className="text-xs text-muted-foreground">Añadir</span>
-              </button>
-            </div>
+              </div>
+            </>
           ) : (
             <div className="mt-5 p-6 rounded-3xl border border-dashed border-border text-center">
               <p className="text-sm text-muted-foreground">Aún no hay nadie en tu círculo.</p>
