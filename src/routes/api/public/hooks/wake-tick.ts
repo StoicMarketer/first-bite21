@@ -24,7 +24,7 @@ export const Route = createFileRoute("/api/public/hooks/wake-tick")({
 
         const { data: alarms, error } = await supabaseAdmin
           .from("alarms")
-          .select("user_id, alarm_time, is_active, last_fired_on, profiles!inner(timezone)")
+          .select("id, user_id, alarm_time, is_active, last_fired_on, profiles!inner(timezone)")
           .eq("is_active", true);
         if (error) {
           return new Response(JSON.stringify({ error: error.message }), { status: 500 });
