@@ -198,12 +198,6 @@ function HomePage() {
               {now.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}
             </div>
           </div>
-          {(overview?.profile?.streak_count ?? 0) > 0 && (
-            <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent">
-              <Sparkles className="h-3 w-3" strokeWidth={1.5} />
-              <span className="text-xs tabular">{overview!.profile!.streak_count}</span>
-            </div>
-          )}
         </div>
 
         <PushBanner />
