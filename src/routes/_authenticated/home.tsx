@@ -48,6 +48,7 @@ function HomePage() {
   const createAlarmFn = useServerFn(createAlarm);
   const deleteAlarmFn = useServerFn(deleteAlarm);
   const wakeFn = useServerFn(getWakeQueue);
+  const toggleFavoriteFn = useServerFn(toggleFavorite);
 
   const { data: overview } = useQuery({ queryKey: ["overview"], queryFn: () => overviewFn() });
   const { data: circle } = useQuery({ queryKey: ["circle"], queryFn: () => circleFn() });
