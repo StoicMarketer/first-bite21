@@ -41,6 +41,8 @@ function WakePage() {
   const saveFn = useServerFn(saveMessage);
   const reactFn = useServerFn(sendReaction);
   const updateAlarmFn = useServerFn(updateAlarm);
+  const wakeOpenFn = useServerFn(registerWakeOpen);
+  const qcRoot = useQueryClient();
 
   const { data: queueData, isLoading } = useQuery({
     queryKey: ["wakeQueue", force, messageId],
