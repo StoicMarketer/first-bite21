@@ -30,9 +30,14 @@ function AddByCodePage() {
 
   const lookup = useMutation({
     mutationFn: () => lookupFn({ data: { code } }),
-    onSuccess: (r) => { if (r) setPreview(r as Preview); else toast.error("Código no encontrado"); },
+    onSuccess: (r) => {
+      if (r) {
+        navigate({ to: "/u/$username", params: { username: (r as Preview).username }, replace: true });
+      } else toast.error("Código no encontrado");
+    },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   useEffect(() => {
     if (authed) lookup.mutate();

@@ -14,6 +14,7 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as UUsernameRouteImport } from './routes/u.$username'
 import { Route as CCodeRouteImport } from './routes/c.$code'
 import { Route as AddCodeRouteImport } from './routes/add.$code'
 import { Route as AuthenticatedWakeRouteImport } from './routes/_authenticated/wake'
@@ -50,6 +51,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UUsernameRoute = UUsernameRouteImport.update({
+  id: '/u/$username',
+  path: '/u/$username',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CCodeRoute = CCodeRouteImport.update({
@@ -135,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/wake': typeof AuthenticatedWakeRoute
   '/add/$code': typeof AddCodeRoute
   '/c/$code': typeof CCodeRoute
+  '/u/$username': typeof UUsernameRoute
   '/channels/$slug': typeof AuthenticatedChannelsSlugRoute
   '/channels/mine': typeof AuthenticatedChannelsMineRoute
   '/channels/new': typeof AuthenticatedChannelsNewRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/wake': typeof AuthenticatedWakeRoute
   '/add/$code': typeof AddCodeRoute
   '/c/$code': typeof CCodeRoute
+  '/u/$username': typeof UUsernameRoute
   '/channels/$slug': typeof AuthenticatedChannelsSlugRoute
   '/channels/mine': typeof AuthenticatedChannelsMineRoute
   '/channels/new': typeof AuthenticatedChannelsNewRoute
@@ -174,6 +182,7 @@ export interface FileRoutesById {
   '/_authenticated/wake': typeof AuthenticatedWakeRoute
   '/add/$code': typeof AddCodeRoute
   '/c/$code': typeof CCodeRoute
+  '/u/$username': typeof UUsernameRoute
   '/_authenticated/channels/$slug': typeof AuthenticatedChannelsSlugRoute
   '/_authenticated/channels/mine': typeof AuthenticatedChannelsMineRoute
   '/_authenticated/channels/new': typeof AuthenticatedChannelsNewRoute
@@ -195,6 +204,7 @@ export interface FileRouteTypes {
     | '/wake'
     | '/add/$code'
     | '/c/$code'
+    | '/u/$username'
     | '/channels/$slug'
     | '/channels/mine'
     | '/channels/new'
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
     | '/wake'
     | '/add/$code'
     | '/c/$code'
+    | '/u/$username'
     | '/channels/$slug'
     | '/channels/mine'
     | '/channels/new'
@@ -233,6 +244,7 @@ export interface FileRouteTypes {
     | '/_authenticated/wake'
     | '/add/$code'
     | '/c/$code'
+    | '/u/$username'
     | '/_authenticated/channels/$slug'
     | '/_authenticated/channels/mine'
     | '/_authenticated/channels/new'
@@ -248,6 +260,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   AddCodeRoute: typeof AddCodeRoute
   CCodeRoute: typeof CCodeRoute
+  UUsernameRoute: typeof UUsernameRoute
   ApiPublicHooksWakeTickRoute: typeof ApiPublicHooksWakeTickRoute
 }
 
@@ -286,6 +299,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/u/$username': {
+      id: '/u/$username'
+      path: '/u/$username'
+      fullPath: '/u/$username'
+      preLoaderRoute: typeof UUsernameRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/c/$code': {
@@ -430,6 +450,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   AddCodeRoute: AddCodeRoute,
   CCodeRoute: CCodeRoute,
+  UUsernameRoute: UUsernameRoute,
   ApiPublicHooksWakeTickRoute: ApiPublicHooksWakeTickRoute,
 }
 export const routeTree = rootRouteImport
