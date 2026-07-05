@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
-import { Share2, Plus, AlarmClockCheck, Sparkles, Trash2, ChevronDown } from "lucide-react";
+import { Share2, Plus, AlarmClockCheck, Sparkles, Trash2, ChevronDown, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { MobileShell } from "@/components/mobile-shell";
 import { SendMessageSheet } from "@/components/send-message-sheet";
 import { PushBanner } from "@/components/push-banner";
 import { getMyOverview, updateAlarm, createAlarm, deleteAlarm, getWakeQueue } from "@/lib/messages.functions";
-import { getCircle } from "@/lib/friends.functions";
+import { getCircle, toggleFavorite } from "@/lib/friends.functions";
 import { cn, humanCountdown, nextTriggerForAlarm } from "@/lib/utils";
 
 // Spanish weekday labels. Index 0 = Sunday to match JS Date#getDay().
@@ -35,7 +35,7 @@ export const Route = createFileRoute("/_authenticated/home")({
   component: HomePage,
 });
 
-type Friend = { id: string; username: string; display_name: string | null; avatar_url: string | null; alarm_time: string | null; alarm_active: boolean };
+type Friend = { id: string; username: string; display_name: string | null; avatar_url: string | null; alarm_time: string | null; alarm_active: boolean; is_favorite?: boolean };
 
 type AlarmRow = { id: string; alarm_time: string; is_active: boolean; label: string | null; days_of_week: number[] | null };
 
@@ -48,6 +48,7 @@ function HomePage() {
   const createAlarmFn = useServerFn(createAlarm);
   const deleteAlarmFn = useServerFn(deleteAlarm);
   const wakeFn = useServerFn(getWakeQueue);
+  const toggleFavoriteFn = useServerFn(toggleFavorite);
 
   const { data: overview } = useQuery({ queryKey: ["overview"], queryFn: () => overviewFn() });
   const { data: circle } = useQuery({ queryKey: ["circle"], queryFn: () => circleFn() });
@@ -70,6 +71,22 @@ function HomePage() {
   const deleteMut = useMutation({
     mutationFn: (id: string) => deleteAlarmFn({ data: { id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["overview"] }),
+  });
+  const favMut = useMutation({
+    mutationFn: (p: { friendId: string; favorite: boolean }) => toggleFavoriteFn({ data: p }),
+    onMutate: async (p) => {
+      await qc.cancelQueries({ queryKey: ["circle"] });
+      const prev = qc.getQueryData<Friend[]>(["circle"]);
+      if (prev) {
+        qc.setQueryData<Friend[]>(["circle"], prev.map((f) => f.id === p.friendId ? { ...f, is_favorite: p.favorite } : f));
+      }
+      return { prev };
+    },
+    onError: (_e, _p, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["circle"], ctx.prev);
+      toast.error("No se pudo actualizar el favorito");
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["circle"] }),
   });
 
   // Live clock
@@ -353,27 +370,58 @@ function HomePage() {
           </div>
 
           {circle && circle.length > 0 ? (
-            <div className="mt-5 flex gap-3 overflow-x-auto no-scrollbar -mx-6 px-6 pb-2">
-              {circle.map((f) => (
+            <>
+              {/* Favoritos */}
+              <div className="mt-5 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-[10px] tracking-[0.3em] uppercase text-muted-foreground">
+                  <Star className="h-3 w-3 fill-current" strokeWidth={0} />
+                  Mis favoritos
+                </div>
+                {circle.some((f) => f.is_favorite) && (
+                  <span className="text-[10px] text-muted-foreground/70">Toca ★ para editar</span>
+                )}
+              </div>
+              {circle.some((f) => f.is_favorite) ? (
+                <div className="mt-3 flex gap-3 overflow-x-auto no-scrollbar -mx-6 px-6 pb-2">
+                  {circle.filter((f) => f.is_favorite).map((f) => (
+                    <FriendAvatarButton
+                      key={f.id}
+                      friend={f as Friend}
+                      onSelect={setSelectedFriend}
+                      onToggleFavorite={(fav) => favMut.mutate({ friendId: f.id, favorite: fav })}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-muted-foreground/80">
+                  Marca con ★ a las personas que quieres despertar más a menudo.
+                </p>
+              )}
+
+              {/* Circle completo */}
+              <div className="mt-6 text-[10px] tracking-[0.3em] uppercase text-muted-foreground">
+                Todo tu círculo
+              </div>
+              <div className="mt-3 flex gap-3 overflow-x-auto no-scrollbar -mx-6 px-6 pb-2">
+                {circle.map((f) => (
+                  <FriendAvatarButton
+                    key={f.id}
+                    friend={f as Friend}
+                    onSelect={setSelectedFriend}
+                    onToggleFavorite={(fav) => favMut.mutate({ friendId: f.id, favorite: fav })}
+                  />
+                ))}
                 <button
-                  key={f.id}
-                  onClick={() => setSelectedFriend(f as Friend)}
+                  onClick={() => navigate({ to: "/circle" })}
                   className="flex-shrink-0 flex flex-col items-center gap-2 w-20"
                 >
-                  <Avatar src={f.avatar_url} name={f.display_name || f.username} active={f.alarm_active} />
-                  <span className="text-xs truncate w-full text-center">{f.display_name || f.username}</span>
+                  <div className="h-16 w-16 rounded-full border border-dashed border-border flex items-center justify-center">
+                    <Plus className="h-5 w-5 text-muted-foreground" strokeWidth={1.5} />
+                  </div>
+                  <span className="text-xs text-muted-foreground">Añadir</span>
                 </button>
-              ))}
-              <button
-                onClick={() => navigate({ to: "/circle" })}
-                className="flex-shrink-0 flex flex-col items-center gap-2 w-20"
-              >
-                <div className="h-16 w-16 rounded-full border border-dashed border-border flex items-center justify-center">
-                  <Plus className="h-5 w-5 text-muted-foreground" strokeWidth={1.5} />
-                </div>
-                <span className="text-xs text-muted-foreground">Añadir</span>
-              </button>
-            </div>
+              </div>
+            </>
           ) : (
             <div className="mt-5 p-6 rounded-3xl border border-dashed border-border text-center">
               <p className="text-sm text-muted-foreground">Aún no hay nadie en tu círculo.</p>
@@ -442,6 +490,43 @@ function Avatar({ src, name, active }: { src: string | null; name: string; activ
       {active && (
         <div className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-[color:var(--ember)] border-2 border-background" />
       )}
+    </div>
+  );
+}
+
+function FriendAvatarButton({
+  friend,
+  onSelect,
+  onToggleFavorite,
+}: {
+  friend: Friend;
+  onSelect: (f: Friend) => void;
+  onToggleFavorite: (fav: boolean) => void;
+}) {
+  const isFav = !!friend.is_favorite;
+  return (
+    <div className="flex-shrink-0 flex flex-col items-center gap-2 w-20">
+      <div className="relative">
+        <button
+          onClick={() => onSelect(friend)}
+          className="block active:scale-95 transition-transform"
+          aria-label={`Enviar amanecer a ${friend.display_name || friend.username}`}
+        >
+          <Avatar src={friend.avatar_url} name={friend.display_name || friend.username} active={friend.alarm_active} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleFavorite(!isFav); }}
+          aria-pressed={isFav}
+          aria-label={isFav ? "Quitar de favoritos" : "Añadir a favoritos"}
+          className={cn(
+            "absolute -bottom-0.5 -right-0.5 h-6 w-6 rounded-full border-2 border-background flex items-center justify-center transition-colors",
+            isFav ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Star className={cn("h-3 w-3", isFav && "fill-current")} strokeWidth={1.5} />
+        </button>
+      </div>
+      <span className="text-xs truncate w-full text-center">{friend.display_name || friend.username}</span>
     </div>
   );
 }
