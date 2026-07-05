@@ -72,7 +72,7 @@ export const respondFriendRequest = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ============ Get circle (accepted friends + their alarm hint) ============
+// ============ Get circle (accepted friends + their alarm hint + is_favorite) ============
 export const getCircle = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -87,15 +87,44 @@ export const getCircle = createServerFn({ method: "GET" })
     const friendIds = (rows ?? []).map((r) => (r.user_id === userId ? r.friend_id : r.user_id));
     if (friendIds.length === 0) return [];
 
-    const [{ data: profiles }, { data: alarms }] = await Promise.all([
+    const [{ data: profiles }, { data: alarms }, { data: favs }] = await Promise.all([
       supabase.from("profiles").select("id, username, display_name, avatar_url, streak_count").in("id", friendIds),
       supabase.from("alarms").select("user_id, alarm_time, is_active").in("user_id", friendIds),
+      supabase.from("favorites").select("friend_id").eq("user_id", userId).in("friend_id", friendIds),
     ]);
 
+    const favSet = new Set((favs ?? []).map((f) => f.friend_id));
     return (profiles ?? []).map((p) => {
       const alarm = (alarms ?? []).find((a) => a.user_id === p.id);
-      return { ...p, alarm_time: alarm?.alarm_time ?? null, alarm_active: alarm?.is_active ?? false };
+      return {
+        ...p,
+        alarm_time: alarm?.alarm_time ?? null,
+        alarm_active: alarm?.is_active ?? false,
+        is_favorite: favSet.has(p.id),
+      };
     });
+  });
+
+export const toggleFavorite = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ friendId: z.string().uuid(), favorite: z.boolean() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    if (data.friendId === userId) throw new Error("No puedes marcarte a ti mismo");
+    if (data.favorite) {
+      const { error } = await supabase
+        .from("favorites")
+        .upsert({ user_id: userId, friend_id: data.friendId }, { onConflict: "user_id,friend_id" });
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await supabase
+        .from("favorites")
+        .delete()
+        .eq("user_id", userId)
+        .eq("friend_id", data.friendId);
+      if (error) throw new Error(error.message);
+    }
+    return { ok: true };
   });
 
 export const getPendingRequests = createServerFn({ method: "GET" })
