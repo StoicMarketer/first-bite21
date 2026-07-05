@@ -37,7 +37,7 @@ export const Route = createFileRoute("/_authenticated/home")({
 
 type Friend = { id: string; username: string; display_name: string | null; avatar_url: string | null; alarm_time: string | null; alarm_active: boolean };
 
-type AlarmRow = { id: string; alarm_time: string; is_active: boolean; label: string | null };
+type AlarmRow = { id: string; alarm_time: string; is_active: boolean; label: string | null; days_of_week: number[] | null };
 
 function HomePage() {
   const navigate = useNavigate();
@@ -53,18 +53,18 @@ function HomePage() {
   const { data: circle } = useQuery({ queryKey: ["circle"], queryFn: () => circleFn() });
 
   const alarms: AlarmRow[] = useMemo(() => {
-    const raw = (overview?.alarms ?? []) as Array<{ id: string; alarm_time: string; is_active: boolean; label: string | null }>;
+    const raw = (overview?.alarms ?? []) as Array<{ id: string; alarm_time: string; is_active: boolean; label: string | null; days_of_week: number[] | null }>;
     return [...raw]
-      .map((a) => ({ ...a, alarm_time: a.alarm_time.slice(0, 5) }))
+      .map((a) => ({ ...a, alarm_time: a.alarm_time.slice(0, 5), days_of_week: a.days_of_week ?? ALL_DAYS }))
       .sort((a, b) => a.alarm_time.localeCompare(b.alarm_time));
   }, [overview]);
 
   const updateMut = useMutation({
-    mutationFn: (p: { id: string; alarmTime: string; isActive: boolean }) => updateAlarmFn({ data: p }),
+    mutationFn: (p: { id: string; alarmTime: string; isActive: boolean; label?: string | null; daysOfWeek?: number[] }) => updateAlarmFn({ data: p }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["overview"] }),
   });
   const createMut = useMutation({
-    mutationFn: (p: { alarmTime: string; isActive: boolean }) => createAlarmFn({ data: p }),
+    mutationFn: (p: { alarmTime: string; isActive: boolean; label?: string; daysOfWeek?: number[] }) => createAlarmFn({ data: p }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["overview"] }),
   });
   const deleteMut = useMutation({
@@ -79,17 +79,20 @@ function HomePage() {
     return () => clearInterval(t);
   }, []);
 
-  // Trigger navigation to /wake as soon as any active alarm hits its time.
+  // Trigger navigation to /wake as soon as any active alarm hits its time (respecting days_of_week).
   useEffect(() => {
     const actives = alarms.filter((a) => a.is_active);
     if (actives.length === 0) return;
-    const targets = actives.map((a) => nextTriggerAt(a.alarm_time).getTime());
     const i = setInterval(() => {
-      const t = Date.now();
-      if (targets.some((tt) => t >= tt)) {
-        if (typeof window !== "undefined" && window.location.pathname !== "/wake") {
-          navigate({ to: "/wake" });
-        }
+      const d = new Date();
+      const hhmm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      const today = d.getDay();
+      const hit = actives.some((a) => {
+        const days = (a.days_of_week && a.days_of_week.length > 0) ? a.days_of_week : ALL_DAYS;
+        return a.alarm_time === hhmm && days.includes(today);
+      });
+      if (hit && typeof window !== "undefined" && window.location.pathname !== "/wake") {
+        navigate({ to: "/wake" });
       }
     }, 1000);
     return () => clearInterval(i);
@@ -100,13 +103,13 @@ function HomePage() {
     const actives = alarms.filter((a) => a.is_active);
     if (actives.length === 0) return null;
     const sorted = [...actives].sort(
-      (a, b) => nextTriggerAt(a.alarm_time).getTime() - nextTriggerAt(b.alarm_time).getTime()
+      (a, b) => nextTriggerForAlarm(a.alarm_time, a.days_of_week).getTime() - nextTriggerForAlarm(b.alarm_time, b.days_of_week).getTime()
     );
     return sorted[0];
   }, [alarms, now]);
 
   const nextTarget = useMemo(
-    () => (nextAlarm ? nextTriggerAt(nextAlarm.alarm_time) : null),
+    () => (nextAlarm ? nextTriggerForAlarm(nextAlarm.alarm_time, nextAlarm.days_of_week) : null),
     [nextAlarm, now]
   );
 
@@ -115,6 +118,12 @@ function HomePage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [draftHour, setDraftHour] = useState(7);
   const [draftMinute, setDraftMinute] = useState(0);
+  const [draftDays, setDraftDays] = useState<number[]>(ALL_DAYS);
+  const [draftLabel, setDraftLabel] = useState("");
+
+  function toggleDraftDay(d: number) {
+    setDraftDays((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]);
+  }
 
   function openCreate() {
     let hh = 7, mm = 0;
@@ -126,8 +135,11 @@ function HomePage() {
     }
     setDraftHour(hh);
     setDraftMinute(mm);
+    setDraftDays(ALL_DAYS);
+    setDraftLabel("");
     setCreateOpen(true);
   }
+
 
   async function saveNewAlarm() {
     const t = `${String(draftHour).padStart(2, "0")}:${String(draftMinute).padStart(2, "0")}`;
