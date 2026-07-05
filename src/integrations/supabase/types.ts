@@ -529,6 +529,36 @@ export type Database = {
         }
         Relationships: []
       }
+      weekly_challenges: {
+        Row: {
+          code: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          target: number
+          user_id: string
+          week_start: string
+        }
+        Insert: {
+          code: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          target: number
+          user_id: string
+          week_start: string
+        }
+        Update: {
+          code?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          target?: number
+          user_id?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -610,6 +640,16 @@ export type Database = {
       }
       mark_achievement_seen: { Args: { _code: string }; Returns: undefined }
       regenerate_my_wake_code: { Args: never; Returns: string }
+      resolve_weekly_challenges: {
+        Args: never
+        Returns: {
+          code: string
+          completed: boolean
+          progress: number
+          reward: number
+          target: number
+        }[]
+      }
       update_my_username: { Args: { _username: string }; Returns: string }
     }
     Enums: {

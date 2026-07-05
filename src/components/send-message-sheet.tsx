@@ -48,6 +48,8 @@ export function SendMessageSheet({ friend, onClose }: { friend: Friend | null; o
       qc.invalidateQueries({ queryKey: ["progress"] });
       try { await checkFn(); } catch { /* silencioso */ }
       qc.invalidateQueries({ queryKey: ["unseen-achievements"] });
+      qc.invalidateQueries({ queryKey: ["weekly-challenges"] });
+      qc.invalidateQueries({ queryKey: ["circle-leaderboard"] });
       qc.invalidateQueries({ queryKey: ["achievements"] });
       onClose();
     },
@@ -163,6 +165,8 @@ export function SendMessageSheet({ friend, onClose }: { friend: Friend | null; o
       qc.invalidateQueries({ queryKey: ["progress"] });
       try { await checkFn(); } catch { /* silencioso */ }
       qc.invalidateQueries({ queryKey: ["unseen-achievements"] });
+      qc.invalidateQueries({ queryKey: ["weekly-challenges"] });
+      qc.invalidateQueries({ queryKey: ["circle-leaderboard"] });
       qc.invalidateQueries({ queryKey: ["achievements"] });
       resetAll();
       onClose();
