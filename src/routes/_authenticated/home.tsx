@@ -35,7 +35,7 @@ export const Route = createFileRoute("/_authenticated/home")({
   component: HomePage,
 });
 
-type Friend = { id: string; username: string; display_name: string | null; avatar_url: string | null; alarm_time: string | null; alarm_active: boolean };
+type Friend = { id: string; username: string; display_name: string | null; avatar_url: string | null; alarm_time: string | null; alarm_active: boolean; is_favorite?: boolean };
 
 type AlarmRow = { id: string; alarm_time: string; is_active: boolean; label: string | null; days_of_week: number[] | null };
 
