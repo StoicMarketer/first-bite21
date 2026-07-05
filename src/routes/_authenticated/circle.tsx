@@ -62,6 +62,14 @@ function CirclePage() {
           onPendingClick={() => pendingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
         />
 
+        <LevelBar
+          soles={progress?.soles ?? 0}
+          level={progress?.level ?? 0}
+          sendStreak={progress?.sendStreak ?? 0}
+          wakeStreak={progress?.wakeStreak ?? 0}
+        />
+
+
         <div className="mt-10">
           <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground">Añadir por @usuario</div>
           <div className="mt-3">
