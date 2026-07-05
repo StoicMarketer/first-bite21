@@ -84,11 +84,11 @@ export type UnlockedAchievement = {
 export const checkAchievements = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<UnlockedAchievement[]> => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
     const { data, error } = await supabase.rpc("check_achievements");
     if (error) throw new Error(error.message);
     const rows = (data ?? []) as Array<{ code: string; title: string; description: string; icon: string; rarity: string; soles_reward: number }>;
-    return rows.map((r) => ({
+    const unlocks = rows.map((r) => ({
       code: r.code,
       title: r.title,
       description: r.description,
@@ -96,6 +96,17 @@ export const checkAchievements = createServerFn({ method: "POST" })
       rarity: r.rarity,
       solesReward: r.soles_reward,
     }));
+    // Notify the circle for rare milestones only (epic/legendary) — don't spam on commons.
+    const notable = unlocks.filter((u) => u.rarity === "epic" || u.rarity === "legendary");
+    if (notable.length > 0) {
+      try {
+        const { notifyCircleMilestone } = await import("./milestone-notify.server");
+        await Promise.all(notable.map((u) =>
+          notifyCircleMilestone({ userId, kind: "achievement", achievementTitle: u.title, rarity: u.rarity })
+        ));
+      } catch { /* noop */ }
+    }
+    return unlocks;
   });
 
 export const getAchievements = createServerFn({ method: "GET" })
