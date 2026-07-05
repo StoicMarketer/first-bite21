@@ -94,9 +94,11 @@ function HomePage() {
 
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [draftHour, setDraftHour] = useState(7);
+  const [draftMinute, setDraftMinute] = useState(0);
 
-  async function addAlarm() {
-    // Suggest a time 1h after the latest existing alarm, else 07:00.
+  function openCreate() {
     let hh = 7, mm = 0;
     if (alarms.length > 0) {
       const last = alarms[alarms.length - 1].alarm_time;
@@ -104,11 +106,15 @@ function HomePage() {
       hh = (lh + 1) % 24;
       mm = lm;
     }
-    const t = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-    const created = await createMut.mutateAsync({ alarmTime: t, isActive: true });
-    if (created && typeof created === "object" && "id" in created) {
-      setExpandedId((created as { id: string }).id);
-    }
+    setDraftHour(hh);
+    setDraftMinute(mm);
+    setCreateOpen(true);
+  }
+
+  async function saveNewAlarm() {
+    const t = `${String(draftHour).padStart(2, "0")}:${String(draftMinute).padStart(2, "0")}`;
+    await createMut.mutateAsync({ alarmTime: t, isActive: true });
+    setCreateOpen(false);
   }
 
   async function invite() {
@@ -161,7 +167,7 @@ function HomePage() {
               </div>
             </div>
             <button
-              onClick={addAlarm}
+              onClick={openCreate}
               aria-label="Añadir alarma"
               className="h-11 w-11 rounded-full bg-foreground text-background flex items-center justify-center active:scale-95 transition-transform"
             >
@@ -182,7 +188,7 @@ function HomePage() {
         <div className="mt-4 space-y-3">
           {alarms.length === 0 && (
             <button
-              onClick={addAlarm}
+              onClick={openCreate}
               className="w-full p-5 rounded-3xl border border-dashed border-border text-sm text-muted-foreground text-left"
             >
               Aún no hay alarmas. Toca + para crear la primera.
@@ -311,6 +317,35 @@ function HomePage() {
       </div>
 
       <SendMessageSheet friend={selectedFriend} onClose={() => setSelectedFriend(null)} />
+
+      {createOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-background/70 backdrop-blur-md flex items-end sm:items-center justify-center p-6 animate-in fade-in-0"
+          onClick={() => setCreateOpen(false)}
+        >
+          <div
+            className="relative bg-card border border-border rounded-3xl p-6 w-full max-w-sm shadow-xl animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-[10px] tracking-[0.4em] uppercase text-muted-foreground text-center">
+              Nueva alarma
+            </div>
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <TimeColumn value={draftHour} max={23} onChange={setDraftHour} />
+              <span className="font-display text-4xl">:</span>
+              <TimeColumn value={draftMinute} max={59} onChange={setDraftMinute} />
+            </div>
+            <div className="mt-8 flex gap-3">
+              <Button variant="ghost" className="flex-1 rounded-full" onClick={() => setCreateOpen(false)}>
+                Cancelar
+              </Button>
+              <Button className="flex-1 rounded-full" onClick={saveNewAlarm} disabled={createMut.isPending}>
+                Guardar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </MobileShell>
   );
 }
