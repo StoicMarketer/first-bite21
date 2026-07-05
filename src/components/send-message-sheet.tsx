@@ -34,6 +34,8 @@ export function SendMessageSheet({ friend, onClose }: { friend: Friend | null; o
   const progressRef = useRef<HTMLDivElement | null>(null);
   const qc = useQueryClient();
   const sendFn = useServerFn(sendMessage);
+  const checkFn = useServerFn(checkAchievements);
+
 
   const sendText = useMutation({
     mutationFn: (payload: { receiverId: string; text: string }) =>
