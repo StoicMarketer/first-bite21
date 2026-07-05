@@ -6,9 +6,11 @@ import { Check, X, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MobileShell } from "@/components/mobile-shell";
 import { respondFriendRequest, getCircle, getPendingRequests, getMyProfile } from "@/lib/friends.functions";
+import { getMyProgress } from "@/lib/gamification.functions";
 import { AddByHandle } from "@/components/add-by-handle";
 import { ProfileHeader } from "@/components/profile-header";
 import { SettingsSheet } from "@/components/settings-sheet";
+import { LevelBar } from "@/components/level-bar";
 
 export const Route = createFileRoute("/_authenticated/circle")({
   component: CirclePage,
@@ -20,12 +22,14 @@ function CirclePage() {
   const circleFn = useServerFn(getCircle);
   const pendingFn = useServerFn(getPendingRequests);
   const meFn = useServerFn(getMyProfile);
+  const progressFn = useServerFn(getMyProgress);
   const pendingRef = useRef<HTMLDivElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const { data: me } = useQuery({ queryKey: ["my-profile"], queryFn: () => meFn() });
   const { data: circle } = useQuery({ queryKey: ["circle"], queryFn: () => circleFn() });
   const { data: pending } = useQuery({ queryKey: ["pending"], queryFn: () => pendingFn() });
+  const { data: progress } = useQuery({ queryKey: ["progress"], queryFn: () => progressFn() });
 
   const respond = useMutation({
     mutationFn: (p: { friendshipId: string; accept: boolean }) => respondFn({ data: p }),
